@@ -1,0 +1,186 @@
+#install.packages('colormap')
+
+library(ggplot2)
+library(colormap)
+library(magick)
+library(ggraph)
+library(igraph)
+library(reshape2)
+library(plyr)
+library(EvoFreq)
+library(colorspace)
+
+#### Jeff ###
+
+# setwd('~/Dropbox/Moffitt Research/Passenger Driver/ChandlerPlot/C = 0.01/')
+# setwd('~/Dropbox/Moffitt Research/Passenger Driver/ChandlerPlot/C = 0.10/')
+# setwd('~/Dropbox/Moffitt Research/Passenger Driver/ChandlerPlot/C = 0.30/')
+setwd('~/Dropbox/ChandlerPlot/C = 0.01/')
+setwd('~/Dropbox/ChandlerPlot/C = 0.10/')
+setwd('~/Dropbox/ChandlerPlot/C = 0.30/')
+setwd('~/Dropbox/ChandlerPlot/C = 0.10 Ryan/')
+
+
+ending_timepoint <- 7000
+custom_colors <- c("#3874b1", "#c6382c","#4f9f39", "#bdbe3a","#8e66ba","#f08627","#53bbce", "#d67bbf","#85584c", "#b2c5e6","#f39c97", "#a6de90","#dcdc93","#c2aed3","#f6bf7e","#a9d8e4","#eeb8d1","#be9d92","#c7c7c7","#7f7f7f")
+
+clone_history_file <- "./clonesBig.csv"
+clone_parents_file <- "./parentsBig.csv"
+clone_driver_file <- "./driverStatusBig.csv"
+
+clone_history_file <- "./clonesDiv.csv"
+clone_parents_file <- "./parentsDiv.csv"
+clone_driver_file <- "./driverStatusDiv.csv"
+
+clone_history_file <- "./driverClonesBig.csv"
+clone_parents_file <- "./driverParentsBig.csv"
+
+clone_history_file <- "./driverClonesDiv.csv"
+clone_parents_file <- "./driverParentsDiv.csv"
+
+#Ryan added
+clone_df <- read.csv(clone_history_file, check.names = F, header = T)
+parent_list <- as.numeric(read.csv(clone_parents_file, check.names = F, header = F))
+clone_list <- as.numeric(row.names(clone_df))
+time_pts <- colnames(clone_df)
+c_pallete <- colormap(nshades = length(clone_list),colormap = 'rainbow-soft')
+c_pallete2 <- colormap(nshades = length(clone_list),colormap = 'phase')
+# c_pallete <- sample(c_pallete)
+
+pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list, scale_by_sizes_at_time = F, clone_cmap =c_pallete, time_pts=as.numeric(time_pts),interpolation_steps = 25)
+
+driver_vec = as.numeric(read.table(clone_driver_file, sep=",", check.names = F, header = F))
+driver_vec = which(driver_vec==1)
+driver_ids = clone_list[driver_vec]
+
+# pos_df$alpha = sapply(pos_df$clone_id, FUN=function(x){
+#   if(any(x==driver_ids)){
+#     return(1.0)}
+#   else{
+#     return(0.0)}
+#   })
+
+pos_out_df <- as.data.frame(matrix(NA,ncol=length(colnames(pos_df))+1, nrow=0))
+colnames(pos_out_df) <- c(colnames(pos_df),"alpha")
+# alpha_multiplier = 1.0;
+color_iterator = 1
+for(i in 1:length(unique(pos_df$clone_id))){
+  tmp <- subset(pos_df, pos_df$clone_id==unique(pos_df$clone_id)[i])
+  tmp$alpha= 1.0
+  if(any(unique(pos_df$clone_id)[i]==driver_ids) & tmp$clone_id!=1){
+    color_iterator = color_iterator + round((length(c_pallete)-1)/length(driver_ids),0)
+    tmp$color = c_pallete[color_iterator]
+    # alpha_multiplier = 1.0
+    # tmp$alpha = 0.4
+  }
+  else if(unique(tmp$parent)==0){
+    print("here")
+    # tmp$alpha= 0.4
+    tmp$color = "grey"
+  }
+  else{
+    tmp$color = c_pallete[color_iterator]
+    # parentColor = hex2RGB(c_pallete[color_iterator])
+    # for(k in 1:3){
+    #   parentColor@coords[k] = parentColor@coords[k] + rnorm(1,mean=0,sd=0.0)
+    # }
+    # tmp$color = hex(parentColor, fixup = T)
+
+    #tmp$color = c_pallete[color_iterator+sample(1:10,1)]# sample(1:length(c_pallete),1)]
+    # alpha_multiplier = alpha_multiplier*0.5;
+    # tmp$alpha= tmp$alpha/1.1
+  }
+  # tmp$color = c_pallete[color_iterator]
+
+  pos_out_df <- rbind(pos_out_df, tmp)
+}
+
+fp <- plot_freq_dynamics_alpha(pos_out_df, bw=0.05, bc="black", end_time = ending_timepoint)
+fp <- fp + theme_minimal()
+fp <- fp # remove labels
+fp <- fp + theme() + ylim(0, 1) + ylab("Frequency")
+fp <- fp + guides(fill=F, color=F, alpha=F) + xlab("Time")
+print(fp)
+
+nonzeros <- apply(clone_df, MARGIN=2, FUN=function(x){return(which(x!=0))})
+mutburden <- ldply(nonzeros, length)
+colnames(mutburden) <- c("Time","Burden")
+mutburden$Time <- as.numeric(mutburden$Time)
+
+# p <- ggplot(mutburden, aes(x=Time, y=Burden)) + geom_point() + geom_line() + scale_x_continuous(limits=c(0,ending_timepoint)) + theme_minimal()
+p <- ggplot(mutburden, aes(x=Time, y=Burden)) + geom_point() + geom_line() + scale_x_continuous() + theme_minimal() + xlab("") + theme(axis.title.x=element_blank(), axis.text.x = element_blank())
+
+ryan_plot <- grid.arrange(p,fp, ncol=1, nrow=2)
+
+
+
+
+#### Example ####
+# clone_history_file <- "./clone_history.csv"
+# clone_history_df <- read.csv(clone_history_file, check.names = F, header = T, stringsAsFactors = F)
+# time_idx <- which(!is.na(as.numeric(colnames(clone_history_df))))
+# time_pts <- as.numeric(colnames(clone_history_df)[time_idx])
+# clone_df <- clone_history_df[time_idx]
+# clone_list <- clone_history_df$head
+# parent_list <- clone_history_df$tail
+# clone_antigenicity <- clone_history_df$final_antigenicity
+# c_pallete <- colormap(nshades = length(clone_list),colormap = 'jet')
+# ### Use defaults
+# pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list)
+# evo_p <- plot_freq_dynamics(pos_df)
+# print(evo_p)
+# ### Color populations by attribute ###
+# # pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list, threshold = 0.0, scale_by_sizes_at_time = F, time_pts = time_pts, attribute_vals = clone_antigenicity) ##color by attribute
+#
+# ### Use a user-defined colormap ###
+# # pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list, threshold = 0.0, scale_by_sizes_at_time = F, time_pts = time_pts, clone_cmap = c_pallete) ### use custom colormap
+#
+# ### View each population individually ####
+# evo_p_facet <- evo_p + facet_wrap(~clone_id)
+# print(evo_p_facet)
+#
+# ### Scale frequencies at each time step ###
+# pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list, threshold = 0.0, scale_by_sizes_at_time = T, time_pts = time_pts) ### scale frequencies by time points
+# evo_p <- plot_freq_dynamics(pos_df)
+# print(evo_p)
+#
+# ### View as dendrogram, showing extinct populations ###
+# extinct_tree <- view_as_hierarchy(clone_df, clones = clone_list, parents = parent_list, threshold = 0.0, show_extinct = T)
+# print(extinct_tree)
+#
+# ### View as dendrogram, showing only mutations that would be detectable ###
+# extant_tree <- view_as_hierarchy(clone_df, clones = clone_list, parents = parent_list, attribute_vals = clone_antigenicity, threshold = 0.0, show_extinct = F)
+# print(extant_tree)
+#
+
+#### Test Muller data, which starts as a long dataframe. Use long_to_wide_size_df to conver to wide matrix
+### Also use as example of interopolation and animations ###
+# library(ggmuller)
+# muller_pos <- get_Muller_df(example_edges, example_pop_df)
+# Muller_plot(muller_pos)
+# Muller_pop_plot(muller_pos)
+# wide_df <- long_to_wide_size_df(example_edges, example_pop_df, time_col_name = "Generation", clone_col_name = "Identity", parent_col_name = "Parent", size_col_name = "Population")
+# clone_list <- wide_df$clones
+# parent_list <- wide_df$parents
+# clone_df <- wide_df$wide_size_df
+# pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list, threshold = 0.0, scale_by_sizes_at_time = F, interpolation_steps = 10) ### use default colors
+# # pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list, threshold = 0.0, scale_by_sizes_at_time = F, interpolation_steps = 0) ### use default colors
+# mp <- plot_freq_dynamics(pos_df)
+# plot(mp)
+# animate_freq_dynamics(pos_df)
+
+### Test fishplot data, which starts as a frequency matrix. Use data_type = "freq_mat" argument in get_freq_dynamics ###
+# timepoints=c(0,30,75,150)
+# clone_df = matrix(
+#   c(100, 45, 00, 00,
+#     02, 00, 00, 00,
+#     02, 00, 02, 01,
+#     98, 00, 95, 40),
+#   ncol=length(timepoints))
+# clone_df <- clone_df/100
+# parent_list = c(0,1,1,3)
+# clone_list <- seq(1, nrow(clone_df))
+# pos_df <- get_freq_dynamics(clone_df, clones = clone_list, parents = parent_list, threshold = 0.0, scale_by_sizes_at_time = F, time_pts = timepoints, data_type = "freq_mat", interpolation_steps = 10) ### use default colors
+# fp <- plot_freq_dynamics(pos_df)
+# print(fp)
+
