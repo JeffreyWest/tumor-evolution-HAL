@@ -20,8 +20,6 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
     public int delete_thresh = 25;                  // ignore clone sizes smaller than this in Muller plots
     public int ExpectedNumberOfClones = 1000000;    // used to create vectors to store clonal information
 
-
-
     // DO NOT CHANGE THESE
     // assumes model is initialized with all cell's progenyID = 1
     public int KpMAX = 0, KdMAX = 1, progenyNextID = 2, sideLen;
@@ -93,7 +91,7 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         win.AddCol(0, Vis);
         win.RunGui();
 
-        for (int i = 0; i <= totalTime; i++) {
+        for (int i = 0; i < totalTime; i++) {
 
             model.Step();
 
