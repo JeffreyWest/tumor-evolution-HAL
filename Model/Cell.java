@@ -42,7 +42,6 @@ public class Cell extends AgentSQ2Dunstackable<TumorEvolution> {
             progenyID = G.progenyNextID;
             G.progenyToParentIDs[progenyID] = parentID;
             G.driver_status[progenyID] = (driver_mutated) ? kd : kd;
-            G.driver_number[progenyID] = kd;
             G.passenger_number[progenyID] = kp;
             G.progenyNextID++;
 
@@ -59,7 +58,7 @@ public class Cell extends AgentSQ2Dunstackable<TumorEvolution> {
 
     Cell Birth(){
         // Passengers lower birth rate; Drivers raise birth rate
-        double effective_birth_rate = Math.pow(1.0+G.sd,(double)kd)/Math.pow(1.0+G.sp,(double)kp)*G.birth_rate;
+        double effective_birth_rate = Math.pow(1.0+G.sd,(double)kd)*G.birth_rate;
 
         if(G.rn.Double()<(effective_birth_rate)) {
             int nDivOptions = G.MapEmptyHood(G.neighborhood, Xsq(), Ysq());

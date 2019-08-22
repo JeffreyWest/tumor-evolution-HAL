@@ -12,18 +12,16 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
     // parameters for the simulation
     public double mu_p = 1e-3;                      // passenger mutation rate
     public double mu_d = 1e-4;                      // driver mutation rate
-    public double sp = 1e-3;                        // passenger mutation birth multiplier
     public double sd = 0.1;                         // driver mutation birth multiplier
     public double birth_rate = 0.5;                 // baseline birth rate
     public double death_rate = 0.5;                 // baseline death rate
     public int r0 = 20;                             // initial size of population (r0 x r0)
-    public int delete_thresh = 25;                  // ignore clone sizes smaller than this in Muller plots
+    public int delete_threshold = 25;               // ignore clone sizes smaller than this in Muller plots
     public int ExpectedNumberOfClones = 1000000;    // used to create vectors to store clonal information
 
-    // DO NOT CHANGE THESE
-    // assumes model is initialized with all cell's progenyID = 1
+    // DO NOT CHANGE THESE (assumes model is initialized with all cell's progenyID = 1)
     public int KpMAX = 0, KdMAX = 1, progenyNextID = 2, sideLen;
-    public int[] progenyToParentIDs,driver_status,driver_number,passenger_number,neighborhood=MooreHood(false);
+    public int[] progenyToParentIDs,driver_status,passenger_number,neighborhood=MooreHood(false);
     public int[][] muller;
     Rand rn=new Rand();
 
@@ -34,7 +32,6 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         System.out.println("Building vectors to store clones (this may take a second...)");
         this.progenyToParentIDs = new int[ExpectedNumberOfClones];
         this.driver_status = new int[ExpectedNumberOfClones];
-        this.driver_number = new int[ExpectedNumberOfClones];
         this.passenger_number = new int[ExpectedNumberOfClones];
         this.sideLen = sideLenth;
 
@@ -54,14 +51,24 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         }
     }
 
-
     // Step function for model ("steps" all cells through birth/death/mutation)
-    void Step(){
+    void Step(int time, int modifier){
+
+        // store muller information, if the time is right
+        if (time % modifier == 0) {
+            for (Cell c : this) {
+                this.muller[c.progenyID][(time / modifier)] = this.muller[c.progenyID][(time / modifier)] + 1;
+            }
+        }
+
+        // step through birth/death process for all cells
         for (Cell c:this) {
             c.Birth();
             c.Death();
         }
-        CleanShuffle(rn); // shuffle order of agents which birth/death is done each time step
+
+        // shuffle order of agents which birth/death is done each time step
+        CleanShuffle(rn);
     }
 
     /*
@@ -73,9 +80,9 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
 
     public static void main(String[] args) {
 
-        int sideLength = 1000;
+        int sideLength = 500;               // domain size
         int modifier = 50;                  // when to save data (saves when time % modifier == 0)
-        int totalTime = 1000;               // total simulation time
+        int totalTime = 500;                // total simulation time
 
         // some folder / file names
         String foldername = "data-output/";
@@ -87,28 +94,23 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         // VISUALIZE
         UIWindow win = new UIWindow("Tumor Evolution", true);
         UIGrid Vis = new UIGrid(sideLength,sideLength, 1);
-        GifMaker myGif = new GifMaker(gifFilename, 100,true);
         win.AddCol(0, Vis);
         win.RunGui();
 
-        for (int i = 0; i < totalTime; i++) {
+        GifMaker myGif = new GifMaker(gifFilename, 100,true);
 
-            model.Step();
+        for (int time = 0; time < totalTime; time++) {
 
-            if (i % modifier == 0) {
-                DrawCells(model, Vis);
-                myGif.AddFrame(Vis);
-                System.out.println("time: " + i + " pop: " + model.Pop());
+            model.Step(time,modifier);
 
-                for (Cell c : model) {
-                    model.muller[c.progenyID][(i / modifier)] = model.muller[c.progenyID][(i / modifier)] + 1;
-                }
+            if (time % modifier == 0) {
+                DrawCellsAndSaveGif(model, Vis, myGif);
+                System.out.println("time: " + time + " pop: " + model.Pop());
             }
         }
 
-
         System.out.println("Reducing phylogenies (this may take a minute)...");
-        ReduceParents(foldername, model.muller, model.progenyToParentIDs, model.driver_status, model.ExpectedNumberOfClones, totalTime, modifier, model.delete_thresh);
+        model.ReduceAndOutputClones(foldername, totalTime, modifier);
         System.out.println("Simulation finished...");
 
         myGif.Close();
@@ -125,107 +127,99 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
 
      */
 
-    public static void DrawCells(TumorEvolution model, UIGrid visCells) {
-        for (int i = 0; i < visCells.length; i++) {
+    public static void DrawCellsAndSaveGif(TumorEvolution model, UIGrid vis, GifMaker myGif) {
+        for (int i = 0; i < vis.length; i++) {
             Cell c=model.GetAgent(i);
-            visCells.SetPix(i, (c==null) ? RGB(1,1,1) : CategorialColor((c.kd - 1) % 19 ));
+            vis.SetPix(i, (c==null) ? RGB(1,1,1) : CategorialColor((c.kd - 1) % 19 ));
         }
+
+        myGif.AddFrame(vis);
     }
 
 
     /*
 
         ReduceParents()
-            - removes clones that are dead and gone
+            - removes clones that never grew above "delete_threshold"
             - reconnects parents together so that there is a continuous lineage when parent dies and child lives on
             - writes everything out
 
      */
 
-    public static void ReduceParents(String foldername, int[][] mullerGenetic, int[] progenyToParentIDs, int[] driver_status, int expectedProgeny, int totalTime, int modifier, int delete_thresh) {
+    public void ReduceAndOutputClones(String foldername, int totalTime, int modifier) {
 
-        FileIO parentsReduced = new FileIO((foldername + "parents.csv"), "w");
-        FileIO geneticMullerReduced = new FileIO((foldername + "clones.csv"), "w");
-        FileIO driverStatusReduced = new FileIO((foldername + "driverStatus.csv"), "w");
+        FileIO mullerReduced = new FileIO((foldername + "evofreq_dataframe.csv"), "w");
 
-        int rowmax = 0;
         ArrayList<Integer> reducedParents = new ArrayList<>();
         ArrayList<Integer> reducedProgeny = new ArrayList<>();
         ArrayList<Integer> reducedDriverStatus = new ArrayList<>();
         reducedParents.add(new Integer(-1)); // add 0th parent
         reducedProgeny.add(new Integer(0)); // add 0th progeny
 
-        for (int jj = 1; jj < expectedProgeny; jj++) {
-            rowmax = 0;
+        for (int jj = 1; jj < this.ExpectedNumberOfClones; jj++) {
+            int rowmax = 0;
             for (int ii = 0; ii < (totalTime / modifier) - 1; ii++) {
-                rowmax = (mullerGenetic[jj][ii] > rowmax) ? mullerGenetic[jj][ii]: rowmax;
+                rowmax = (muller[jj][ii] > rowmax) ? muller[jj][ii]: rowmax;
             }
 
-            if (rowmax > delete_thresh) {
+            if (rowmax > delete_threshold) {
 
                 int mySupposedParent = progenyToParentIDs[jj];
 
                 // check if my parent is in there:
+                // (it may not be, if parent is below delete_threshold)
                 while (!reducedProgeny.contains(new Integer(mySupposedParent))) {
 
-                    // parent is parent of my parent, lol -- is that parent in there?
+                    // parent is parent of my parent, etc
                     mySupposedParent = progenyToParentIDs[progenyToParentIDs[mySupposedParent]];
 
-                    // breaks if it is in there, eventually up the chain
+                    // loop breaks when a parent is found eventually up the chain of parents
                 }
 
-                // if my parent is in the reduced thing, add me.
+                // add the (parent, progeny) pair to respective array lists
                 reducedParents.add(new Integer(reducedProgeny.indexOf(mySupposedParent)));
                 reducedProgeny.add(new Integer(jj));
+
+                // also add the driver status to its array list
                 reducedDriverStatus.add(new Integer(driver_status[jj]));
 
             }
         }
 
-
-        // first, output time:
         StringBuilder sb = new StringBuilder();
-        StringBuilder sb2 = new StringBuilder();
-        StringBuilder sb3 = new StringBuilder(); //ryan
+
+        // add a row of headers (including each time point) to the first row of .csv file
+        sb.append("CloneID,Parent,Drivers,");
         for (int time = 0; time < (totalTime / modifier) - 1; time++) { sb.append(time*modifier + ","); }
         sb.append(modifier*((totalTime / modifier) - 1) + "\n");
-        geneticMullerReduced.Write(sb.toString()); // file name
+        mullerReduced.Write(sb.toString()); // file name
 
-
-        // out gene muller big to file
         int ii_reduced = 0;
-        for (int jj = 1; jj < expectedProgeny; jj++) {
+        for (int jj = 1; jj < this.ExpectedNumberOfClones; jj++) {
             sb = new StringBuilder();
 
-            // check if it's in reduced
+            // check if it's in reduced array list (i.e. that it exceeded delete_threshold)
             if (reducedProgeny.contains(new Integer(jj))) {
+
+                // append cloneID, parent and # of drivers:
+                sb.append(Integer.toString(ii_reduced)+ "," + Integer.toString(reducedParents.get(ii_reduced) + 1)+ ",");
+                sb.append(( (ii_reduced == 0) ? Integer.toString(1) : Integer.toString(reducedDriverStatus.get(ii_reduced)) ));
+                sb.append(",");
+
+                // append this cloneID's size over time
                 for (int ii = 0; ii < (totalTime / modifier) - 1; ii++) {
-                    sb.append(mullerGenetic[jj][ii] + ",");
+                    sb.append(muller[jj][ii] + ",");
                 }
-                sb.append(mullerGenetic[jj][(totalTime / modifier) - 1] + "\n");
+                sb.append(muller[jj][(totalTime / modifier) - 1] + "\n");
 
-                // output string, including newline \n
-                geneticMullerReduced.Write(sb.toString());
-
-
-                // first iteration no comma
-                sb2.append(( (ii_reduced == 0) ? Integer.toString(reducedParents.get(ii_reduced) + 1) : "," + Integer.toString(reducedParents.get(ii_reduced) + 1) )); // add supposed parent, not actual
-
-                // first one is driver, otherwise check driver status
-                sb3.append(( (ii_reduced == 0) ? Integer.toString(1) : "," + Integer.toString(reducedDriverStatus.get(ii_reduced)) ));
-
+                // write out
+                mullerReduced.Write(sb.toString());
                 ii_reduced++;
             }
-
-
         }
-        parentsReduced.Write(sb2.toString());
-        driverStatusReduced.Write(sb3.toString());
-        driverStatusReduced.Close();
-        geneticMullerReduced.Close();
-        parentsReduced.Close();
 
+        // close file
+        mullerReduced.Close();
     }
-
 }
 
