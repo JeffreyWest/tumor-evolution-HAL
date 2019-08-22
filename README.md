@@ -1,6 +1,6 @@
 ## Tissue structure accelerates evolution: premalignant sweeps precede neutral invasion
 
-This is the open-source code repository for the passenger driver model of tumor evolution. We encourage you to begin by reading the manuscript here: (link coming soon). There is a two-dimensional on lattice agent-based model called PD2D and a three-dimensional on lattice agent-based model of tumor evolution for ductal carcinoma in situ.
+This is the open-source code repository for the passenger driver model of tumor evolution. This is a two-dimensional on lattice agent-based model.
 
 ## Before you start
 TumorEvolution.java uses the open-source agent-based modeling platform called [HAL](http://halloworld.org/). In order to run this code base, you'll need to download the latest version of [Java](http://www.oracle.com/technetwork/java/javase/downloads/jdk9-downloads-3848520.html) and an editor (we suggest using [IntelliJ Idea](https://www.jetbrains.com/idea/download/)).
