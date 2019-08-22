@@ -14,26 +14,22 @@ public class Cell extends AgentSQ2Dunstackable<TumorEvolution> {
         progenyID = progenyID0;
         parentID = parentID0;
         G.driver_status[0] = 1;
-
+        G.passenger_status[0] = 0;
         return this;
     }
 
     Cell Mutate(){
         boolean mutated = false;
-        boolean driver_mutated = false;
 
         // driver mutation
         if((G.rn.Double() < ( G.mu_d))) {
             kd++;
-            if (kd > G.KdMAX) { G.KdMAX++; }
             mutated = true;
-            driver_mutated = true;
         }
 
         // passenger mutation
         if((G.rn.Double() <(G.mu_p))) {
             kp++;
-            if (kp > G.KpMAX) { G.KpMAX++; }
             mutated = true;
         }
 
@@ -41,8 +37,8 @@ public class Cell extends AgentSQ2Dunstackable<TumorEvolution> {
             parentID = progenyID;
             progenyID = G.progenyNextID;
             G.progenyToParentIDs[progenyID] = parentID;
-            G.driver_status[progenyID] = (driver_mutated) ? kd : kd;
-            G.passenger_number[progenyID] = kp;
+            G.driver_status[progenyID] = kd;
+            G.passenger_status[progenyID] = kp;
             G.progenyNextID++;
 
             if (G.progenyNextID >= G.ExpectedNumberOfClones) {

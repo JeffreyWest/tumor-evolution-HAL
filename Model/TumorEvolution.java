@@ -20,8 +20,8 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
     public int ExpectedNumberOfClones = 1000000;    // used to create vectors to store clonal information
 
     // DO NOT CHANGE THESE (assumes model is initialized with all cell's progenyID = 1)
-    public int KpMAX = 0, KdMAX = 1, progenyNextID = 2, sideLen;
-    public int[] progenyToParentIDs,driver_status,passenger_number,neighborhood=MooreHood(false);
+    public int progenyNextID = 2, sideLen;
+    public int[] progenyToParentIDs,driver_status,passenger_status,neighborhood=MooreHood(false);
     public int[][] muller;
     Rand rn=new Rand();
 
@@ -32,7 +32,7 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         System.out.println("Building vectors to store clones (this may take a second...)");
         this.progenyToParentIDs = new int[ExpectedNumberOfClones];
         this.driver_status = new int[ExpectedNumberOfClones];
-        this.passenger_number = new int[ExpectedNumberOfClones];
+        this.passenger_status = new int[ExpectedNumberOfClones];
         this.sideLen = sideLenth;
 
         // construct muller vector:
@@ -153,6 +153,8 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         ArrayList<Integer> reducedParents = new ArrayList<>();
         ArrayList<Integer> reducedProgeny = new ArrayList<>();
         ArrayList<Integer> reducedDriverStatus = new ArrayList<>();
+        ArrayList<Integer> reducedPassengerStatus = new ArrayList<>();
+
         reducedParents.add(new Integer(-1)); // add 0th parent
         reducedProgeny.add(new Integer(0)); // add 0th progeny
 
@@ -180,8 +182,9 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
                 reducedParents.add(new Integer(reducedProgeny.indexOf(mySupposedParent)));
                 reducedProgeny.add(new Integer(jj));
 
-                // also add the driver status to its array list
+                // also add the driver/passenger status to its array list
                 reducedDriverStatus.add(new Integer(driver_status[jj]));
+                reducedPassengerStatus.add(new Integer(passenger_status[jj]));
 
             }
         }
@@ -189,7 +192,7 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         StringBuilder sb = new StringBuilder();
 
         // add a row of headers (including each time point) to the first row of .csv file
-        sb.append("CloneID,Parent,Drivers,");
+        sb.append("CloneID,Parent,Drivers,Passengers,");
         for (int time = 0; time < (totalTime / modifier) - 1; time++) { sb.append(time*modifier + ","); }
         sb.append(modifier*((totalTime / modifier) - 1) + "\n");
         mullerReduced.Write(sb.toString()); // file name
@@ -204,6 +207,8 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
                 // append cloneID, parent and # of drivers:
                 sb.append(Integer.toString(ii_reduced)+ "," + Integer.toString(reducedParents.get(ii_reduced) + 1)+ ",");
                 sb.append(( (ii_reduced == 0) ? Integer.toString(1) : Integer.toString(reducedDriverStatus.get(ii_reduced)) ));
+                sb.append(",");
+                sb.append(( (ii_reduced == 0) ? Integer.toString(0) : Integer.toString(reducedPassengerStatus.get(ii_reduced)) ));
                 sb.append(",");
 
                 // append this cloneID's size over time
