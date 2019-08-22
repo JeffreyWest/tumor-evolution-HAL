@@ -18,3 +18,11 @@ TumorEvolution.java uses the open-source agent-based modeling platform called [H
 7. use the minus button to remove any pre-existing library setup
 8. click the plus button, and direct the file browser to the "Framework/ lib" folder.
 9. click apply or ok
+
+### References
+
+1. [Jeffrey West, Ryan Schenck, Chandler Gatenbee, Mark Robertson-Tessi, Alexander RA Anderson. Tissue structure accelerates evolution: premalignant sweeps precede neutral expansion. 2019. bioRxiv.](https://www.biorxiv.org/content/10.1101/542019v2)
+
+2. [Hybrid Automata Library: A modular platform for efficient hybrid modeling with real-time visualization
+Rafael Bravo, Etienne Baratchart, Jeffrey West, Ryan O. Schenck, Anna K. Miller, Jill Gallaher, Chandler D. Gatenbee, David Basanta, Mark Robertson-Tessi, Alexander R. A. Anderson
+bioRxiv 411538.](https://www.biorxiv.org/content/10.1101/411538v4)
