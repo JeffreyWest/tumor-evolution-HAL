@@ -29,8 +29,6 @@ TumorEvolution.java uses the open-source agent-based modeling platform called [H
 Rafael Bravo, Etienne Baratchart, Jeffrey West, Ryan O. Schenck, Anna K. Miller, Jill Gallaher, Chandler D. Gatenbee, David Basanta, Mark Robertson-Tessi, Alexander R. A. Anderson
 bioRxiv 411538.](https://www.biorxiv.org/content/10.1101/411538v4)
 
-![Magma RPlot](media/Rplot_colors.png)
+![Magma RPlot](data-output/Rplot_colors.png)
 
 ![Colored By HAL Scheme RPlot](data-output/RplotMagma.png)
-
-![HAL Gif](data-output/tumor_evolution.gif)
