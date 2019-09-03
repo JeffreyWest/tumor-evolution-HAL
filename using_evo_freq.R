@@ -17,3 +17,7 @@ print(hal_info$evofreq_plot)
 # color by the same color scheme as HAL
 hal_info <- read.HAL(mypath,fill_name = "Color")
 print(hal_info$evofreq_plot)
+
+# alternatively, you can update the color scheme of an existing plot as follows:
+updated_plot <- update_colors(hal_info$freq_frame, hal_info$clones, hal_info$attributes$Color)
+plot_evofreq(updated_plot)
