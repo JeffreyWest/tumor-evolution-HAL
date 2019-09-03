@@ -2,6 +2,7 @@ package Framework.GridsAndAgents;
 
 import Framework.Interfaces.OverlapForceResponse3D;
 import Framework.Rand;
+import Framework.Util;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ public class SphericalAgent3D<A extends SphericalAgent3D,G extends AgentGrid3D<A
     public double xVel;
     public double yVel;
     public double zVel;
+    private static ThreadLocal<double[]>scratchCoordDefault=new ThreadLocal<>();
     public void Init(double radius){
         this.radius=radius;
         this.xVel=xVel;
@@ -92,6 +94,26 @@ public class SphericalAgent3D<A extends SphericalAgent3D,G extends AgentGrid3D<A
         }
         return sum;
     }
+    public <T extends SphericalAgent3D> double SumForces(ArrayList<T> neighbors,ArrayList<double[]> displacementInfo, OverlapForceResponse3D<T> OverlapFun) {
+        double sum=0;
+        for (int i = 0; i < neighbors.size(); i++) {
+            T a = neighbors.get(i);
+            double[]info=displacementInfo.get(i);
+            double dist = info[0];
+            double xComp = info[1];
+            double yComp = info[2];
+            double zComp = info[3];
+            double touchDist = (radius + a.radius) - dist;
+            double force = OverlapFun.CalcForce(touchDist, a);
+            xVel+=(xComp/dist)*force;
+            yVel+=(yComp/dist)*force;
+            zVel+=(zComp/dist)*force;
+            if (force > 0) {
+                sum += Math.abs(force);
+            }
+        }
+        return sum;
+    }
 
     /**
      * mulitplies xVel and yVel by frictionConst. if frictionConst = 1, then no friction force will be applied, if
@@ -138,8 +160,24 @@ public class SphericalAgent3D<A extends SphericalAgent3D,G extends AgentGrid3D<A
         if(rn!=null){
             rn.RandomPointOnSphereEdge(divRadius, scratchCoordArr);
         }
+        else {
+            double normSq = Util.NormSquared(scratchCoordArr[0], scratchCoordArr[1], scratchCoordArr[2]);
+            if (normSq != divRadius * divRadius) {
+                double norm = Math.sqrt(normSq);
+                scratchCoordArr[0] = scratchCoordArr[0] * divRadius / norm;
+                scratchCoordArr[1] = scratchCoordArr[1] * divRadius / norm;
+                scratchCoordArr[2] = scratchCoordArr[2] * divRadius / norm;
+            }
+        }
         A child=(G.NewAgentPTSafe(Xpt()+scratchCoordArr[0],Ypt()+scratchCoordArr[1],Zpt()+scratchCoordArr[2],Xpt(),Ypt(),Zpt()));
         MoveSafePT(Xpt()-scratchCoordArr[0], Ypt()-scratchCoordArr[1], Zpt()-scratchCoordArr[2]);
         return child;
+    }
+
+    public A Divide(double divRadius,Rand rn){
+        if(scratchCoordDefault.get()==null){
+            scratchCoordDefault.set(new double[3]);
+        }
+        return Divide(divRadius,scratchCoordDefault.get(),rn);
     }
 }

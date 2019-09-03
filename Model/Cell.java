@@ -1,78 +1,66 @@
 package Model;
 
 import Framework.GridsAndAgents.AgentSQ2Dunstackable;
+import Framework.Tools.*;
 
 public class Cell extends AgentSQ2Dunstackable<TumorEvolution> {
-    int kd;
-    int kp;
-    int progenyID;
-    int parentID;
 
-    Cell Init(int kp0, int kd0, int progenyID0, int parentID0){
-        kp = kp0;
-        kd = kd0;
-        progenyID = progenyID0;
-        parentID = parentID0;
-        G.driver_status[0] = 1;
-        G.passenger_status[0] = 0;
+    Clone clone;
+
+    Cell Init(Clone parent){
+        this.clone=parent;
+        this.clone.IncPop(); // always increment after init.
         return this;
     }
+
 
     Cell Mutate(){
-        boolean mutated = false;
 
-        // driver mutation
-        if((G.rn.Double() < ( G.mu_d))) {
-            kd++;
-            mutated = true;
+        // if driver mutation, add one to # of drivers
+        int new_kd = (G.rn.Double() < ( G.mu_d)) ? clone.kd+1 : clone.kd;
+
+        // if passenger mutation, add one to # of passengers
+        int new_kp = (G.rn.Double() <(G.mu_p)) ? clone.kp+1 : clone.kp;
+
+        if ((new_kp != clone.kp) || (new_kd != clone.kd)) {
+            // mutation has occured
+            this.clone.DecPop();
+            this.clone = new Clone(this.clone,new_kd,new_kp);      // update clonal lineage
+            this.clone.IncPop();
         }
-
-        // passenger mutation
-        if((G.rn.Double() <(G.mu_p))) {
-            kp++;
-            mutated = true;
-        }
-
-        if (mutated) {
-            parentID = progenyID;
-            progenyID = G.progenyNextID;
-            G.progenyToParentIDs[progenyID] = parentID;
-            G.driver_status[progenyID] = kd;
-            G.passenger_status[progenyID] = kp;
-            G.progenyNextID++;
-
-            if (G.progenyNextID >= G.ExpectedNumberOfClones) {
-                System.out.println("\nERROR :::: increase your expected number of clones: " + Integer.toString(G.ExpectedNumberOfClones) + " is too small.\nSet this is in the TumorEvolution class.");
-                System.exit(1);
-            }
-
-        }
-
 
         return this;
     }
 
-    Cell Birth(){
+    void Birth(){
         // Passengers lower birth rate; Drivers raise birth rate
-        double effective_birth_rate = Math.pow(1.0+G.sd,(double)kd)*G.birth_rate;
+        double clone_specific_birth_rate = Math.pow(1.0+G.sd,(double)clone.kd)*G.birth_rate;
 
-        if(G.rn.Double()<(effective_birth_rate)) {
+        if(G.rn.Double()<(clone_specific_birth_rate)) {
             int nDivOptions = G.MapEmptyHood(G.neighborhood, Xsq(), Ysq());
             if (nDivOptions == 0) {
-                return null; // no space to divide
+                return; // no space to divide
             }
-            int nextAgentID = G.neighborhood[G.rn.Int(nDivOptions)];
-            return G.NewAgentSQ(nextAgentID).Init(this.kp, this.kd, this.progenyID, this.parentID).Mutate();
 
-        }else {
-            return null;
+            int nextAgentID = G.neighborhood[G.rn.Int(nDivOptions)];
+
+            // create daughter
+            Cell daughter = G.NewAgentSQ(nextAgentID).Init(clone);//, this.progenyID, this.parentID);
+
+            daughter.Mutate();
         }
+
+        return;
+
     }
 
     // constant death rate
     void Death() {
         if(G.rn.Double()<(G.death_rate )){
+            this.clone.DecPop();
             Dispose();
         }
     }
+
+
 }

@@ -10,11 +10,19 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import static Framework.Util.Norm;
+
 /**
  * AgentGrid2Ds can hold any type of 2D Agent
  * @param <T> the type of agent that the AgentGrid2D will hold
  */
-public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implements Iterable<T>,Serializable {
+public class AgentGrid2D<T extends AgentBaseSpatial> implements Grid2D,Iterable<T>,Serializable {
+    final public int xDim;
+    final public int yDim;
+    final public int length;
+    public boolean wrapX;
+    public boolean wrapY;
+    int tick;
     InternalGridAgentList<T> agents;
     T[] grid;
     ArrayList<ArrayList<T>> usedAgentSearches = new ArrayList<>();
@@ -30,7 +38,12 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
      * boundary
      */
     public AgentGrid2D(int x, int y, Class<T> agentClass, boolean wrapX, boolean wrapY) {
-        super(x, y, wrapX, wrapY);
+        this.xDim=x;
+        this.yDim=y;
+        this.length=xDim*yDim;
+        this.wrapX=wrapX;
+        this.wrapY=wrapY;
+        this.tick=0;
         //creates a new typeGrid with given dimensions
         agents = new InternalGridAgentList<T>(agentClass, this);
         grid = (T[]) new AgentBaseSpatial[length];
@@ -209,7 +222,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
      * appends to the provided arraylist all agents on the square at the specified coordinates
      */
     public void GetAgents(ArrayList<T> putHere, int x, int y) {
-        T agent = grid[x];
+        T agent = GetAgent(x,y);
         if (agent != null) {
             agent.GetAllOnSquare(putHere);
         }
@@ -230,7 +243,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
      * for which EvalAgent returns true
      */
     public void GetAgents(ArrayList<T> putHere, int x, int y, AgentToBool<T> EvalAgent) {
-        T agent = grid[I(x, y)];
+        T agent = GetAgent(x,y);
         if (agent != null) {
             agent.GetAllOnSquare(putHere, EvalAgent);
         }
@@ -241,7 +254,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
      * for which EvalAgent returns true
      */
     public void GetAgents(ArrayList<T> putHere, int i, AgentToBool<T> EvalAgent) {
-        T agent = grid[i];
+        T agent = GetAgent(i);
         if (agent != null) {
             agent.GetAllOnSquare(putHere, EvalAgent);
         }
@@ -309,7 +322,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
      * quickly gets all agents that are within rad, but also includes some that are further away than rad, an additional
      * distance check should be used to properly subset this group
      */
-    public void GetAgentsRadApprox(final ArrayList<T> retAgentList, final double x, final double y, final double rad) {
+    void GetAgentsRadApprox(final ArrayList<T> retAgentList, final double x, final double y, final double rad) {
         for (int xSq = (int) Math.floor(x - rad); xSq < (int) Math.ceil(x + rad); xSq++) {
             for (int ySq = (int) Math.floor(y - rad); ySq < (int) Math.ceil(y + rad); ySq++) {
                 int retX = xSq;
@@ -335,7 +348,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
      * distance check should be used to properly subset this group. only agents forwhich EvalAgent returns true will be
      * added
      */
-    public void GetAgentsRadApprox(final ArrayList<T> retAgentList, final double x, final double y, final double rad, AgentToBool<T> EvalAgent) {
+    void GetAgentsRadApprox(final ArrayList<T> retAgentList, final double x, final double y, final double rad, AgentToBool<T> EvalAgent) {
         for (int xSq = (int) Math.floor(x - rad); xSq < (int) Math.ceil(x + rad); xSq++) {
             for (int ySq = (int) Math.floor(y - rad); ySq < (int) Math.ceil(y + rad); ySq++) {
                 int retX = xSq;
@@ -409,6 +422,83 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
                 GetAgents(retAgentList, retX, retY, (agent) -> {
                     Agent2DBase a = (Agent2DBase) agent;
                     return Util.DistSquared(a.Xpt(), a.Ypt(), x, y, xDim, yDim, wrapX, wrapY) < radSq && EvalAgent.EvalAgent(agent);
+                });
+            }
+        }
+    }
+    /**
+     * gets all agents that are within rad, and adds them to the ArrayList, displacementInfo contains the following info for each agent: [dist from point,x disp,y disp]
+     */
+    public void GetAgentsRad(final ArrayList<T> retAgentList,final ArrayList<double[]> displacementInfo, final double x, final double y, final double rad) {
+        for (int xSq = (int) Math.floor(x - rad); xSq < (int) Math.ceil(x + rad); xSq++) {
+            for (int ySq = (int) Math.floor(y - rad); ySq < (int) Math.ceil(y + rad); ySq++) {
+                int retX = xSq;
+                int retY = ySq;
+                boolean inX = Util.InDim(retX, xDim);
+                boolean inY = Util.InDim(retY, yDim);
+                if ((!wrapX && !inX) || (!wrapY && !inY)) {
+                    continue;
+                }
+                if (wrapX && !inX) {
+                    retX = Util.Wrap(retX, xDim);
+                }
+                if (wrapY && !inY) {
+                    retY = Util.Wrap(retY, yDim);
+                }
+                GetAgents(retAgentList, retX, retY, (agent) -> {
+                    double dispX=DispX(x,((Agent2DBase) agent).Xpt());
+                    double dispY=DispY(y,((Agent2DBase) agent).Ypt());
+                    double dist=Norm(dispX,dispY);
+                    if(dist<rad) {
+                        for (int i = displacementInfo.size(); i <= retAgentList.size(); i++) {
+                            displacementInfo.add(new double[3]);
+                        }
+                        double[] info = displacementInfo.get(retAgentList.size());
+                        info[0]=dist;
+                        info[1]=dispX;
+                        info[2]=dispY;
+                        return true;
+                    }
+                    return false;
+                });
+            }
+        }
+    }
+
+    /**
+     * gets all agents that are within rad forwhich EvalAgent returns true, and adds them to the ArrayList
+     */
+    public void GetAgentsRad(final ArrayList<T> retAgentList,final ArrayList<double[]> displacementInfo, final double x, final double y, final double rad, AgentToBool<T> EvalAgent) {
+        for (int xSq = (int) Math.floor(x - rad); xSq < (int) Math.ceil(x + rad); xSq++) {
+            for (int ySq = (int) Math.floor(y - rad); ySq < (int) Math.ceil(y + rad); ySq++) {
+                int retX = xSq;
+                int retY = ySq;
+                boolean inX = Util.InDim(retX, xDim);
+                boolean inY = Util.InDim(retY, yDim);
+                if ((!wrapX && !inX) || (!wrapY && !inY)) {
+                    continue;
+                }
+                if (wrapX && !inX) {
+                    retX = Util.Wrap(retX, xDim);
+                }
+                if (wrapY && !inY) {
+                    retY = Util.Wrap(retY, yDim);
+                }
+                GetAgents(retAgentList, retX, retY, (agent) -> {
+                    double dispX=DispX(x,((Agent2DBase) agent).Xpt());
+                    double dispY=DispY(y,((Agent2DBase) agent).Ypt());
+                    double dist=Norm(dispX,dispY);
+                    if(dist<rad&&EvalAgent.EvalAgent(agent)) {
+                        for (int i = displacementInfo.size(); i <= retAgentList.size(); i++) {
+                            displacementInfo.add(new double[3]);
+                        }
+                        double[] info = displacementInfo.get(retAgentList.size());
+                        info[0]=dist;
+                        info[1]=dispX;
+                        info[2]=dispY;
+                        return true;
+                    }
+                    return false;
                 });
             }
         }
@@ -562,6 +652,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
         if (Pop() > 0) {
             throw new IllegalStateException("Something is wrong with Reset, tell Rafael Bravo to fix this!");
         }
+        CleanAgents();
         ResetTick();
     }
 
@@ -734,7 +825,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
      * iterates over all agents within radius, will include some over rad as well, use a second distance check to filter
      * these
      */
-    public Iterable<T> IterAgentsRadApprox(double x, double y, double rad) {
+    Iterable<T> IterAgentsRadApprox(double x, double y, double rad) {
         ArrayList<T> agents = GetFreshAgentSearchArr();
         GetAgentsRadApprox(agents, x, y, rad);
         return GetFreshAgentsIterator(agents);
@@ -1013,6 +1104,31 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
         return agents.GetNewAgent(tick);
     }
 
+    @Override
+    public int Xdim() {
+        return xDim;
+    }
+
+    @Override
+    public int Ydim() {
+        return yDim;
+    }
+
+    @Override
+    public int Length() {
+        return length;
+    }
+
+    @Override
+    public boolean IsWrapX() {
+        return wrapX;
+    }
+
+    @Override
+    public boolean IsWrapY() {
+        return wrapY;
+    }
+
 
     private class AgentsIterator2D implements Iterator<T>, Iterable<T>, Serializable {
         final AgentGrid2D<T> myGrid;
@@ -1052,6 +1168,30 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
             return this;
         }
     }
+
+
+    /**
+     * increments the internal grid tick counter by 1, used with the Age() and BirthTick() functions to get age
+     * information about the agents on an AgentGrid. can otherwise be used as a counter with the other grid types.
+     */
+    public void IncTick() {
+        tick++;
+    }
+
+    /**
+     * gets the current grid timestep.
+     */
+    public int GetTick() {
+        return tick;
+    }
+
+    /**
+     * sets the tick to 0.
+     */
+    public void ResetTick() {
+        tick = 0;
+    }
+
 //    void RemAgentFromSquare(T agent,int iGrid){
 //        //internal function, removes agent from typeGrid square
 //        if(typeGrid[iGrid]==agent){
@@ -1086,7 +1226,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
 //        agents.AddAgent(foreignAgent);
 //        ((AgentGrid2D)foreignAgent.myGrid).agents.NullAgent(foreignAgent);
 //        foreignAgent.myGrid=this;
-//        foreignAgent.Setup(newX,newY);
+//        foreignAgent.Reset(newX,newY);
 //    }
 //    public void ChangeGridsPT(T foreignAgent,double newX,double newY){
 //        if(!foreignAgent.alive){
@@ -1099,7 +1239,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
 //        agents.AddAgent(foreignAgent);
 //        ((AgentGrid2D)foreignAgent.myGrid).agents.NullAgent(foreignAgent);
 //        foreignAgent.myGrid=this;
-//        foreignAgent.Setup(newX,newY);
+//        foreignAgent.Reset(newX,newY);
 //    }
 //    public void ChangeGridsSQ(T foreignAgent,int newI){
 //        if(!foreignAgent.alive){
@@ -1112,7 +1252,7 @@ public class AgentGrid2D<T extends AgentBaseSpatial> extends GridBase2D implemen
 //        ((AgentGrid2D)foreignAgent.myGrid).agents.NullAgent(foreignAgent);
 //        agents.AddAgent(foreignAgent);
 //        foreignAgent.myGrid=this;
-//        foreignAgent.Setup(newI);
+//        foreignAgent.Reset(newI);
 //    }
 
 //    /**

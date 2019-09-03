@@ -1,6 +1,9 @@
 package Framework.GridsAndAgents;
 
 import Framework.Interfaces.Coords1DDouble;
+import Framework.Interfaces.Grid1D;
+import Framework.Tools.Internal.ADIequations;
+import Framework.Tools.TdmaSolver;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -11,7 +14,9 @@ import static Framework.Tools.Internal.PDEequations.*;
 /**
  * a 1D
  */
-public class PDEGrid1D extends GridBase1D implements Serializable {
+public class PDEGrid1D implements Grid1D,Serializable {
+    final public int xDim,length;
+    public boolean wrapX;
     protected double[] deltas;
     protected double[] field;
     //double[] intermediateScratch;
@@ -19,19 +24,28 @@ public class PDEGrid1D extends GridBase1D implements Serializable {
     double[] maxDifscratch;
     boolean adiOrder = true;
     boolean adiX = true;
+    int updateCt;
+    private TdmaSolver tdma;
 
     public PDEGrid1D(int xDim) {
-        super(xDim, false);
+        this.xDim=xDim;
+        this.length=xDim;
+        this.wrapX=false;
         field = new double[this.xDim];
         deltas = new double[this.xDim];
+        tdma=new TdmaSolver(xDim);
     }
 
     public PDEGrid1D(int xDim, boolean wrapX) {
-        super(xDim, wrapX);
-        field = new double[this.xDim];
-        deltas = new double[this.xDim];
+        this(xDim);
+        this.wrapX=wrapX;
     }
-
+    public double[]GetField(){
+        return field;
+    }
+    public double[]GetDeltas(){
+        return deltas;
+    }
     /**
      * gets the prev field value at the specified coordinates
      */
@@ -43,7 +57,7 @@ public class PDEGrid1D extends GridBase1D implements Serializable {
      * sets the prev field value at the specified coordinates
      */
     public void Set(int x, double val) {
-        deltas[x] = val;
+        deltas[x] = val-field[x];
     }
 
     /**
@@ -68,29 +82,30 @@ public class PDEGrid1D extends GridBase1D implements Serializable {
             field[i] += deltas[i];
         }
         Arrays.fill(deltas, 0);
-        IncTick();
+    }
+    public int UpdateCt(){
+        return updateCt;
     }
 
-    /**
-     * runs advection, which moves the concentrations using a constant flow with the x and y velocities passed. this
-     * version of the function assumes wrap-around, so there can be no net flux of concentrations.
-     */
+
+
     public void Advection(double xVel) {
-        if (Math.abs(xVel) > 1) {
-            throw new IllegalArgumentException("Advection rate above maximum stable value of 1.0");
+        if (Math.abs(xVel) > 0.5) {
+            throw new IllegalArgumentException("Advection rate above maximum stable value of 0.5");
         }
-        Advection1(field, deltas, xVel, xDim, wrapX, null);
+        Advection1(field, deltas, xVel, xDim, wrapX, (x) -> 0);
     }
+
 
     /**
      * runs advection as described above with a boundary value, meaning that the boundary value will advect in from the
      * upwind direction, and the concentration will disappear in the downwind direction.
      */
     public void Advection(double xVel, double boundaryValue) {
-        if (Math.abs(xVel) > 1) {
-            throw new IllegalArgumentException("Advection rate above maximum stable value of 1.0");
+        if (Math.abs(xVel) > 0.5) {
+            throw new IllegalArgumentException("Advection rate above maximum stable value of 0.5");
         }
-        Advection1(field, deltas, xVel, xDim, true, (x) -> boundaryValue);
+        Advection1(field, deltas, xVel, xDim, wrapX, (x) -> boundaryValue);
     }
 
     /**
@@ -98,10 +113,41 @@ public class PDEGrid1D extends GridBase1D implements Serializable {
      * bounds coordinates as arguments whenever a boundary value is needed, and should return the boundary value
      */
     public void Advection(double xVel, Coords1DDouble BoundaryConditionFn) {
-        if (Math.abs(xVel) > 1) {
-            throw new IllegalArgumentException("Advection rate above maximum stable value of 1.0");
+        if (Math.abs(xVel) > 0.5) {
+            throw new IllegalArgumentException("Advection rate above maximum stable value of 0.5");
         }
-        Advection1(field, deltas, xVel, xDim, true, BoundaryConditionFn);
+        Advection1(field, deltas, xVel, xDim, wrapX, BoundaryConditionFn);
+    }
+
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(double[]xVels){
+        Advection1(field,deltas,xVels,xDim,wrapX,null,null);
+    }
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(Grid2Ddouble xVels){
+        Advection1(field,deltas,xVels.field,xDim,wrapX,null,null);
+    }
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(double[]xVels,Coords1DDouble BoundaryConditionFn,Coords1DDouble BoundaryXvel){
+        Advection1(field,deltas,xVels,xDim,wrapX,BoundaryConditionFn,BoundaryXvel);
+    }
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(Grid2Ddouble xVels,Coords1DDouble BoundaryConditionFn,Coords1DDouble BoundaryXvel){
+        Advection1(field,deltas,xVels.field,xDim,wrapX,BoundaryConditionFn,BoundaryXvel);
+    }
+    public void DiffusionCrank(double diffCoef){
+        ADIequations.Diffusion1ADI(field,deltas,diffCoef,xDim,wrapX,null,tdma);
+    }
+    public void DiffusionCrank(double diffCoef,Coords1DDouble BC){
+        ADIequations.Diffusion1ADI(field,deltas,diffCoef,xDim,wrapX,BC,tdma);
     }
 
     /**
@@ -140,6 +186,35 @@ public class PDEGrid1D extends GridBase1D implements Serializable {
         }
         Diffusion1(field, deltas, diffCoef, xDim, wrapX, BoundaryConditionFn);
     }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(double[] diffRates){
+        Diffusion1(field,deltas,diffRates,xDim,wrapX,null,null);
+    }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(Grid1Ddouble diffRates){
+        Diffusion1(field,deltas,diffRates.field,xDim,wrapX,null,null);
+    }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(double[] diffRates, Coords1DDouble BoundaryConditionFn, Coords1DDouble BoundaryDiffusionRateFn){
+        Diffusion1(field,deltas,diffRates,xDim,wrapX,BoundaryConditionFn,BoundaryDiffusionRateFn);
+    }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(Grid1Ddouble diffRates, Coords1DDouble BoundaryConditionFn, Coords1DDouble BoundaryDiffusionRateFn){
+        Diffusion1(field,deltas,diffRates.field,xDim,wrapX,BoundaryConditionFn,BoundaryDiffusionRateFn);
+    }
+
 
 
     /**
@@ -213,10 +288,35 @@ public class PDEGrid1D extends GridBase1D implements Serializable {
         return maxDif;
     }
 
+    /**
+     * ensures that all values will be non-negative on the next timestep, call before Update
+     */
+    public void SetNonNegative(){
+        for (int i = 0; i < length; i++) {
+            if(field[i]+deltas[i]<0){
+                Set(i,0);
+            }
+        }
+    }
 
     void EnsureScratch() {
         if (scratch == null) {
             scratch = new double[xDim * 2 + 4];
         }
+    }
+
+    @Override
+    public int Xdim() {
+        return 0;
+    }
+
+    @Override
+    public int Length() {
+        return 0;
+    }
+
+    @Override
+    public boolean IsWrapX() {
+        return false;
     }
 }

@@ -48,50 +48,50 @@ public abstract class Agent3DBase<T extends AgentGrid3D> extends AgentBaseSpatia
     /**
      * returns the index of the center of the square in otherGrid that the coordinate maps to.
      */
-    public int ConvXsq(GridBase3D other) {
-        return (int) (((Xsq() + 0.5) * other.xDim) / G.xDim);
+    public int MapXsq(Grid3D other) {
+        return (int) (((Xsq() + 0.5) * other.Xdim()) / G.xDim);
     }
 
     /**
      * returns the index of the center of the square in otherGrid that the coordinate maps to.
      */
-    public int ConvYsq(GridBase3D other) {
-        return (int) (((Ysq() + 0.5) * other.yDim) / G.yDim);
+    public int MapYsq(Grid3D other) {
+        return (int) (((Ysq() + 0.5) * other.Ydim()) / G.yDim);
     }
 
     /**
      * returns the index of the center of the square in otherGrid that the coordinate maps to.
      */
-    public int ConvZsq(GridBase3D other) {
-        return (int) (((Zsq() + 0.5) * other.zDim) / G.zDim);
+    public int MapZsq(Grid3D other) {
+        return (int) (((Zsq() + 0.5) * other.Zdim()) / G.zDim);
     }
 
     /**
      * returns the index of the center of the square in otherGrid that the coordinate maps to.
      */
-    public int ConvI(GridBase3D other) {
-        return other.I(ConvXsq(other), ConvYsq(other), ConvZsq(other));
+    public int MapI(Grid3D other) {
+        return other.I(MapXsq(other), MapYsq(other), MapZsq(other));
     }
 
     /**
      * returns the provided coordinate scaled to the dimensions of the otherGrid.
      */
-    public double ConvXpt(GridBase3D other) {
-        return Xpt() * other.xDim / G.xDim;
+    public double MapXpt(Grid3D other) {
+        return Xpt() * other.Xdim() / G.xDim;
     }
 
     /**
      * returns the provided coordinate scaled to the dimensions of the otherGrid.
      */
-    public double ConvYpt(GridBase3D other) {
-        return Ypt() * other.yDim / G.yDim;
+    public double MapYpt(Grid3D other) {
+        return Ypt() * other.Ydim() / G.yDim;
     }
 
     /**
      * returns the provided coordinate scaled to the dimensions of the otherGrid.
      */
-    public double ConvZpt(GridBase3D other) {
-        return Ypt() * other.zDim / G.zDim;
+    public double MapZpt(Grid3D other) {
+        return Ypt() * other.Zdim() / G.zDim;
     }
 
     /**
@@ -136,21 +136,21 @@ public abstract class Agent3DBase<T extends AgentGrid3D> extends AgentBaseSpatia
      * gets the X displacement from this agent to a given x position
      */
     public double DispX(double x) {
-        return G.wrapX ? DispWrap(Xpt(), x, G.xDim) : Xpt() - x;
+        return G.wrapX ? DispWrap(Xpt(), x, G.xDim) : x-Xpt();
     }
 
     /**
      * gets the Y displacement from this agent to a given y position
      */
     public double DispY(double y) {
-        return G.wrapY ? DispWrap(Ypt(), y, G.yDim) : Ypt() - y;
+        return G.wrapY ? DispWrap(Ypt(), y, G.yDim) : y-Ypt();
     }
 
     /**
      * gets the Z displacement from this agent to a given z position
      */
     public double DispZ(double z) {
-        return G.wrapZ ? DispWrap(Zpt(), z, G.zDim) : Zpt() - z;
+        return G.wrapZ ? DispWrap(Zpt(), z, G.zDim) : z-Zpt();
     }
 
     /**

@@ -5,11 +5,14 @@ import Framework.Interfaces.MenuItem;
 import Framework.Tools.Internal.KeyRecorder;
 import Framework.Tools.Internal.ParamSet;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.ArrayList;
 
 /**
@@ -18,12 +21,12 @@ import java.util.ArrayList;
  */
 
 
-//TODO: make something like the ParamSet, but for the entire UIWindow, is there any way to do this efficiently?
 public class UIWindow {
     boolean alive;
     KeyRecorder kr;
     final boolean active;
     final boolean killOnClose;
+    private boolean isClosed;
     final private GridBagConstraints gbc;
     public final JFrame frame;
     public final JPanel panel;
@@ -32,6 +35,8 @@ public class UIWindow {
     final ArrayList<Component> subComps;
     final ArrayList<Integer> subCompCoords;
     final ArrayList<Integer> subCompSizes;
+    protected BufferedImage drawBuff;
+    protected Graphics drawGraphics;
     final int[] locs;
     final GuiCloseAction closeAction;
     final TickTimer tt=new TickTimer();
@@ -40,10 +45,10 @@ public class UIWindow {
     /**
      * @param title the title that will appear at the top of the window
      * @param killOnClose whether the program should terminate on closing the window
-     * @param closeAction function that will run when the window is closed
+     * @param CloseAction function that will run when the window is closed
      * @param active if set to false, the UIWindow will not actually render and its methods will be skipped (default true)
      */
-    public UIWindow(String title, boolean killOnClose, GuiCloseAction closeAction, boolean active){
+    public UIWindow(String title, boolean killOnClose, GuiCloseAction CloseAction, boolean active){
         this.active=active;
         this.killOnClose=killOnClose;
         if(active) {
@@ -55,16 +60,17 @@ public class UIWindow {
             this.subCompSizes = new ArrayList<>();
             this.frame.setResizable(false);//fixes window size
             this.frame.setLocationRelativeTo(null);//puts window in middle of screen
-            this.closeAction = closeAction;
+            this.closeAction = CloseAction;
             if (killOnClose) {
                 this.frame.addWindowListener(new WindowAdapter() {
                     @Override
                     public void windowClosing(WindowEvent e) {
-                        if (closeAction != null) {
-                            closeAction.Action(e);
+                        if (CloseAction != null) {
+                            CloseAction.Action(e);
                         }
                         frame.setVisible(false);
                         frame.dispose();
+                        isClosed=true;
                         System.exit(0);
                     }
                 });
@@ -74,11 +80,12 @@ public class UIWindow {
                     public void windowClosing(WindowEvent e) {
                         if (alive) {
                             alive = false;
-                            if (closeAction != null) {
-                                closeAction.Action(e);
+                            if (CloseAction != null) {
+                                CloseAction.Action(e);
                             }
                             frame.setVisible(false);
                             frame.dispose();
+                            isClosed=true;
                         }
                     }
                 });
@@ -120,11 +127,11 @@ public class UIWindow {
     public UIWindow(boolean active) {
         this("",true,null,active);
     }
-    public UIWindow(boolean killOnClose, GuiCloseAction closeAction){
-        this("",killOnClose,closeAction,true);
+    public UIWindow(boolean killOnClose, GuiCloseAction CloseAction){
+        this("",killOnClose,CloseAction,true);
     }
-    public UIWindow(boolean killOnClose,GuiCloseAction closeAction,boolean active) {
-        this("",killOnClose,closeAction,active);
+    public UIWindow(boolean killOnClose,GuiCloseAction CloseAction,boolean active) {
+        this("",killOnClose,CloseAction,active);
     }
     public UIWindow(String title) {
         this(title,true,null,true);
@@ -132,8 +139,8 @@ public class UIWindow {
     public UIWindow(String title,boolean active) {
         this(title,true,null,active);
     }
-    public UIWindow(String title,boolean killOnClose, GuiCloseAction closeAction){
-        this(title,killOnClose,closeAction,true);
+    public UIWindow(String title,boolean killOnClose, GuiCloseAction CloseAction){
+        this(title,killOnClose,CloseAction,true);
     }
     public void TickPause(int millis){
         if(active) {
@@ -255,6 +262,16 @@ public class UIWindow {
             panel.setVisible(true);
         }
     }
+    public boolean IsActive(){
+        return !isClosed&&active;
+    }
+    public boolean IsRunning(){
+        return alive;
+    }
+
+    public boolean IsClosed(){
+        return isClosed;
+    }
 
     public void SetParamValues(String[]vals){
         params.SetVals(vals);
@@ -359,5 +376,37 @@ public class UIWindow {
             frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
         }
     }
+//    private void SaveImage(String filePath,String type){
+//        if(active) {
+//           // if(drawBuff==null||drawBuff.getHeight()!=panel.getHeight()||drawBuff.getWidth()!=panel.getWidth()) {
+//           //     drawBuff = new BufferedImage(panel.getHeight(), panel.getWidth(), BufferedImage.TYPE_INT_RGB);
+//           // }
+//            Dimension size=frame.getSize();
+//            drawBuff=(BufferedImage)frame.createImage(size.width,size.height);
+//            drawGraphics=drawBuff.getGraphics();
+//            frame.paint(drawGraphics);
+//            drawGraphics.dispose();
+//            frame.repaint();
+//            try {
+//                ImageIO.write(drawBuff, type, new File(filePath));
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
+//    public void ToPNG(String filePath) {
+//        SaveImage(filePath,"png");
+//    }
+//    public void ToJPG(String filePath) {
+//        SaveImage(filePath,"jpg");
+//    }
+//    public void ToGIF(String filePath) {
+//        SaveImage(filePath,"gif");
+//    }
+
+
+//    public void paintComponent(Graphics g) {
+//        panel.paintComponent(g);
+//    }
 }
 

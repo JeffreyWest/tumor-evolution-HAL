@@ -1,17 +1,22 @@
 package Framework.Tools.Internal;
-import Framework.GridsAndAgents.PDEGrid1D;
-import Framework.GridsAndAgents.PDEGrid2D;
-import Framework.GridsAndAgents.PDEGrid3D;
 import Framework.Interfaces.Coords1DDouble;
 import Framework.Interfaces.Coords2DDouble;
 import Framework.Interfaces.Coords3DDouble;
+import Framework.Tools.TdmaSolver;
 
 import static Framework.Util.*;
 
 /**
  * Created by Rafael on 10/14/2017.
+ *
+ * future reference notes
+ * constant: FD upwind
+ * incompr: density cannot increase or decrease at any position FD upwind
+ * compr continuous
+ * compr discont
  */
 public class PDEequations {
+
 
     public static void Diffusion1(double[]field,double[]deltas,double diffRate,int xDim,boolean wrapX,Coords1DDouble BC) {
         for (int x = 0; x < xDim; x++) {
@@ -24,11 +29,12 @@ public class PDEequations {
     public static void Diffusion1(double[]field,double[]deltas,double[] diffRates,int xDim,boolean wrapX,Coords1DDouble BC,Coords1DDouble DiffRateBC) {
         for (int x = 0; x < xDim; x++) {
             double centerVal = field[x];
-            double valSum = Delta1D(field, centerVal, x + 1, xDim, wrapX, BC)*Displaced1D(diffRates,x+1,xDim,wrapX,BC);
-            valSum += Delta1D(field, centerVal, x - 1, xDim, wrapX, BC)*Displaced1D(diffRates,x-1,xDim,wrapX,BC);
+            double valSum = Delta1D(field, centerVal, x + 1, xDim, wrapX, BC)*Displaced1D(diffRates,x+1,xDim,wrapX,DiffRateBC);
+            valSum += Delta1D(field, centerVal, x - 1, xDim, wrapX, BC)*Displaced1D(diffRates,x-1,xDim,wrapX,DiffRateBC);
             deltas[x] += valSum;
         }
     }
+
     public static void Diffusion2(double[]field,double[]deltas,double diffRate,int xDim,int yDim,boolean wrapX,boolean wrapY,Coords2DDouble BC) {
         for (int x = 0; x < xDim; x++) {
             for (int y = 0; y < yDim; y++) {
@@ -124,7 +130,7 @@ public class PDEequations {
         int disp = 0;
         for (int x = 0; x < xDim; x++) {
             for (int y = 0; y < yDim; y++) {
-                for (int z = 0; y < yDim; y++) {
+                for (int z = 0; z < zDim; z++) {
                     int i = x * yDim * zDim + y * zDim + z;
                     double centerVal = field[i];
                     if (xVel > 0) {
@@ -147,6 +153,139 @@ public class PDEequations {
         }
     }
 
+    public static void Advection1(double[]field,double[]deltas,double[]xVels,int xDim,boolean wrapX,Coords1DDouble BC,Coords1DDouble XvelBC) {
+        for (int x = 0; x < xDim; x++) {
+            double xFluxp = 0, xFluxm = 0;
+            double xVelp = xVels[x];
+            //either use the wraparound Vels or the BCs if at the edge of the domain
+            if (x == xDim - 1 && !wrapX) {
+                xVelp = Displaced1D(xVels, x + 1, xDim, wrapX, XvelBC);
+            }
+            double xVelm = Displaced1D(xVels, x - 1, xDim, wrapX, XvelBC);
+            double centerVal = field[x];
+            if (xVelp > 0) {
+                xFluxp = xVelp * centerVal;
+            } else if (xVelp < 0) {
+                xFluxp = xVelp * Displaced1D(field, x + 1, xDim, wrapX, BC);
+            }
+            if (xVelm > 0) {
+                xFluxm = xVelm * Displaced1D(field, x - 1, xDim, wrapX, BC);
+            } else if (xVelm < 0) {
+                xFluxm = xVelm * centerVal;
+            }
+            deltas[x] += -xFluxp + xFluxm;
+        }
+    }
+
+    public static void Advection2(double[]field,double[]deltas,double[]xVels,double[]yVels,int xDim,int yDim,boolean wrapX,boolean wrapY,Coords2DDouble BC,Coords2DDouble XvelBC,Coords2DDouble YvelBC){
+        for (int x = 0; x < xDim; x++) {
+            for (int y = 0; y < yDim; y++) {
+                int i=x*yDim+y;
+                double xFluxp=0,xFluxm=0,yFluxp=0,yFluxm=0;
+                double xVelp=xVels[i];
+                double yVelp=yVels[i];
+                //either use the wraparound Vels or the BCs if at the edge of the domain
+                if(x==xDim-1&&!wrapX){
+                    xVelp=DisplacedX2D(xVels,x+1,y,xDim,yDim,wrapX,XvelBC);
+                }
+                if(y==yDim-1&&!wrapY){
+                    yVelp=DisplacedY2D(yVels,x,y+1,xDim,yDim,wrapY,YvelBC);
+                }
+                double xVelm=DisplacedX2D(xVels,x-1,y,xDim,yDim,wrapX,XvelBC);
+                double yVelm=DisplacedY2D(yVels,x,y-1,xDim,yDim,wrapY,YvelBC);
+                double centerVal=field[i];
+                if(xVelp>0){
+                    xFluxp=xVelp*centerVal;
+                }
+                else if(xVelp<0){
+                    xFluxp=xVelp*DisplacedX2D(field,x+1,y,xDim,yDim,wrapX,BC);
+                }
+                if(xVelm>0){
+                    xFluxm=xVelm*DisplacedX2D(field,x-1,y,xDim,yDim,wrapX,BC);
+                }
+                else if(xVelm<0){
+                    xFluxm=xVelm*centerVal;
+                }
+                if(yVelp>0){
+                    yFluxp=yVelp*centerVal;
+                }
+                else if(yVelp<0){
+                    yFluxp=yVelp*DisplacedY2D(field,x,y+1,xDim,yDim,wrapY,BC);
+                }
+                if(yVelm>0){
+                    yFluxm=yVelm*DisplacedY2D(field,x,y-1,xDim,yDim,wrapY,BC);
+                }
+                else if(yVelm<0){
+                    yFluxm=yVelm*centerVal;
+                }
+                deltas[i]+=-xFluxp+xFluxm-yFluxp+yFluxm;
+            }
+
+        }
+    }
+
+    public static void Advection3(double[]field,double[]deltas,double[]xVels,double[]yVels,double[]zVels,int xDim,int yDim,int zDim,boolean wrapX,boolean wrapY,boolean wrapZ,Coords3DDouble BC,Coords3DDouble XvelBC,Coords3DDouble YvelBC,Coords3DDouble ZvelBC) {
+        for (int x = 0; x < xDim; x++) {
+            for (int y = 0; y < yDim; y++) {
+                for (int z = 0; z < zDim; z++) {
+                    int i = x * yDim * zDim + y * zDim + z;
+                    double xFluxp = 0, xFluxm = 0, yFluxp = 0, yFluxm = 0,zFluxp=0,zFluxm=0;
+                    double xVelp = xVels[i];
+                    double yVelp = yVels[i];
+                    double zVelp = zVels[i];
+                    //either use the wraparound Vels or the BCs if at the edge of the domain
+                    if (x == xDim - 1 && !wrapX) {
+                        xVelp = DisplacedX3D(xVels, x + 1, y, z, xDim, yDim, zDim, wrapX, XvelBC);
+                    }
+                    if (y == yDim - 1 && !wrapY) {
+                        yVelp = DisplacedY3D(yVels, x, y + 1,z, xDim, yDim,zDim, wrapY, YvelBC);
+                    }
+                    if (z == zDim - 1 && !wrapZ) {
+                        zVelp = DisplacedZ3D(zVels, x, y,z+1, xDim, yDim,zDim, wrapX, ZvelBC);
+                    }
+                    double xVelm = DisplacedX3D(xVels, x - 1, y,z, xDim, yDim,zDim, wrapX, XvelBC);
+                    double yVelm = DisplacedY3D(yVels, x, y - 1,z, xDim, yDim,zDim, wrapY, YvelBC);
+                    double zVelm = DisplacedY3D(zVels, x, y,z, xDim, yDim,zDim, wrapZ, ZvelBC);
+                    double centerVal = field[i];
+                    if (xVelp > 0) {
+                        xFluxp = xVelp * centerVal;
+                    } else if (xVelp < 0) {
+                        xFluxp = xVelp * DisplacedX3D(field, x + 1, y,z, xDim, yDim,zDim, wrapX, BC);
+                    }
+                    if (xVelm > 0) {
+                        xFluxm = xVelm * DisplacedX3D(field, x - 1, y,z, xDim, yDim,zDim, wrapX, BC);
+                    } else if (xVelm < 0) {
+                        xFluxm = xVelm * centerVal;
+                    }
+                    if (yVelp > 0) {
+                        yFluxp = yVelp * centerVal;
+                    } else if (yVelp < 0) {
+                        yFluxp = yVelp * DisplacedY3D(field, x, y + 1,z, xDim, yDim,zDim, wrapY, BC);
+                    }
+                    if (yVelm > 0) {
+                        yFluxm = yVelm * DisplacedY3D(field, x, y - 1,z, xDim, yDim,zDim, wrapY, BC);
+                    } else if (yVelm < 0) {
+                        yFluxm = yVelm * centerVal;
+                    }
+                    if (zVelp > 0) {
+                        zFluxp = zVelp * centerVal;
+                    } else if (zVelp < 0) {
+                        zFluxp = zVelp * DisplacedY3D(field, x, y,z+1, xDim, yDim,zDim, wrapZ, BC);
+                    }
+                    if (zVelm > 0) {
+                        zFluxm = zVelm * DisplacedY3D(field, x, y,z-1, xDim, yDim,zDim, wrapZ, BC);
+                    } else if (zVelm < 0) {
+                        zFluxm = zVelm * centerVal;
+                    }
+                    deltas[i] += -xFluxp + xFluxm - yFluxp + yFluxm -zFluxp + zFluxm;
+                }
+            }
+        }
+    }
+
+    public static void TDMA(final double[] in,final double[] out, final double[] scratch, final double diffRate){
+
+    }
 
 
     //final answer
@@ -573,7 +712,7 @@ public class PDEequations {
             return vals[x*yDim*zDim+y*zDim+Wrap(z,zDim)];
         }
         else if(BoundaryCond!=null){
-            return BoundaryCond.GenDouble(x,y,z);//Derichlet boundary conds.
+            return BoundaryCond.GenDouble(x,y,z);//Dirichlet boundary conds.
         }
         return 0;//Zero flux
     }
@@ -586,7 +725,7 @@ public class PDEequations {
             return vals[Wrap(x,xDim)]-centerVal;
         }
         else if(BoundaryCond!=null){
-            return (BoundaryCond.GenDouble(x)-centerVal)*2;//Derichlet boundary conds.
+            return (BoundaryCond.GenDouble(x)-centerVal)*2;//Dirichlet boundary conds.
         }
         return 0;//Zero flux
     }

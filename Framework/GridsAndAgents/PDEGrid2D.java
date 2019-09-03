@@ -1,11 +1,16 @@
 package Framework.GridsAndAgents;
 import Framework.Interfaces.Coords2DDouble;
+import Framework.Interfaces.DoubleArrayToVoid;
+import Framework.Interfaces.Grid2D;
+import Framework.Interfaces.VoidFunction;
 import Framework.Tools.Internal.PDEequations;
+import Framework.Tools.TdmaSolver;
 import Framework.Util;
 
 import java.io.Serializable;
 import java.util.Arrays;
 
+import static Framework.Tools.Internal.ADIequations.*;
 import static Framework.Tools.Internal.PDEequations.*;
 
 
@@ -14,7 +19,12 @@ import static Framework.Tools.Internal.PDEequations.*;
  * the intended usage is that during a diffusion tick, the current values will be read, and the prev values will be written to
  * after updates, Update is called to set the prev field as the current field.
  */
-public class PDEGrid2D extends GridBase2D implements Serializable {
+public class PDEGrid2D implements Grid2D,Serializable {
+    final public int xDim;
+    final public int yDim;
+    final public int length;
+    public boolean wrapX;
+    public boolean wrapY;
     protected double[] deltas;
     protected double[] field;
     //double[] intermediateScratch;
@@ -24,50 +34,143 @@ public class PDEGrid2D extends GridBase2D implements Serializable {
     protected double[] maxDifscratch;
     boolean adiOrder = true;
     boolean adiX = true;
+    int updateCt;
+    TdmaSolver tdma;
 
     public PDEGrid2D(int xDim, int yDim) {
-        super(xDim, yDim, false, false);
-        field = new double[this.xDim * this.yDim];
-        deltas = new double[this.xDim * this.yDim];
+        this(xDim,yDim,false,false);
     }
 
     public PDEGrid2D(int xDim, int yDim, boolean wrapX, boolean wrapY) {
-        super(xDim, yDim, wrapX, wrapY);
+        this.xDim=xDim;
+        this.yDim=yDim;
+        this.length=xDim*yDim;
+        this.wrapX=wrapX;
+        this.wrapY=wrapY;
         field = new double[this.xDim * this.yDim];
         deltas = new double[this.xDim * this.yDim];
     }
+    public int UpdateCt(){
+        return updateCt;
+    }
 
-    /**
-     * runs diffusion on the current field using the ADI (alternating direction implicit) method. without a
-     * boundaryValue argument, a zero flux boundary is imposed. wraparound will not work with ADI. ADI is numerically
-     * stable at any diffusion rate.
-     */
-    public void DiffusionADI(double diffCoef) {
-        EnsureScratch();
-        EnsureScratchF1();
-        EnsureScratchF2();
-        DiffusionADI2(true, field, scratchField1, scratch, xDim, yDim, diffCoef / 2, false, 0);
-        DiffusionADI2(false, scratchField1, scratchField2, scratch, xDim, yDim, diffCoef / 2, false, 0);
-        for (int i = 0; i < length; i++) {
-            deltas[i]+=scratchField2[i]-field[i];
+    public double[]GetField(){
+        return field;
+    }
+    public double[]GetDeltas(){
+        return deltas;
+    }
+
+ //   /**
+ //    * runs diffusion on the current field using the ADI (alternating direction implicit) method. without a
+ //    * boundaryValue argument, a zero flux boundary is imposed. wraparound will not work with ADI. ADI is numerically
+ //    * stable at any diffusion rate.
+ //    */
+ //   public void DiffusionADI(double diffCoef) {
+ //       EnsureScratch();
+ //       EnsureScratchF1();
+ //       EnsureScratchF2();
+ //       DiffusionADI2(true, field, scratchField1, scratch, xDim, yDim, diffCoef / 2, false, 0);
+ //       DiffusionADI2(false, scratchField1, scratchField2, scratch, xDim, yDim, diffCoef / 2, false, 0);
+ //       for (int i = 0; i < length; i++) {
+ //           deltas[i]+=scratchField2[i]-field[i];
+ //       }
+ //   }
+
+    public void DiffusionADI(double diffCoef){
+        if(scratch==null){
+            scratch=new double[length];
+        }
+        if(tdma==null){
+            tdma=new TdmaSolver(Math.max(xDim,yDim));
+        }
+        Diffusion2DADI(field,scratch,deltas,diffCoef,xDim,yDim,wrapX,wrapY,null,tdma);
+    }
+    public void DiffusionADI(double diffCoef,double boundaryCond){
+        if(scratch==null){
+            scratch=new double[length];
+        }
+        if(tdma==null){
+            tdma=new TdmaSolver(Math.max(xDim,yDim));
+        }
+        Diffusion2DADI(field,scratch,deltas,diffCoef,xDim,yDim,wrapX,wrapY,(x,y)->boundaryCond,tdma);
+    }
+    public void DiffusionADI(double diffCoef,double boundaryCond, DoubleArrayToVoid BetweenAction) {
+        if(scratch==null){
+            scratch=new double[length];
+        }
+        if(tdma==null){
+            tdma=new TdmaSolver(Math.max(xDim,yDim));
+        }
+        Diffusion2DADIBetweenAction(field,scratch,deltas,diffCoef,xDim,yDim,wrapX,wrapY,(x,y)->boundaryCond,tdma,BetweenAction);
+    }
+    public static void Diffusion2DADIBetweenAction(double[]field, double[]scratch,double[]deltas, double diffRate, int xDim,int yDim, boolean wrapX,boolean wrapY, Coords2DDouble BC, TdmaSolver tdma,DoubleArrayToVoid BetweenAction){
+        for (int y = 0; y < yDim; y++) {//do the x rows
+            int finalY = y;
+            ADISolveRow(xDim,diffRate,2,wrapX,BC!=null,tdma,
+                    (i)->ExplicitDiffusionY2ADI(i,finalY,field,diffRate,xDim,yDim,wrapX,wrapY,BC),
+                    (i,v)->scratch[i*yDim+finalY]=v);
+        }
+        BetweenAction.Action(scratch);
+        for (int x = 0; x < xDim; x++) {//do the y columns
+            int finalX = x;
+            ADISolveRow(yDim,diffRate,2,wrapY,BC!=null,tdma,
+                    (i)->ExplicitDiffusionX2ADI(finalX,i,scratch,diffRate,xDim,yDim,wrapX,wrapY,BC),
+                    (i,v)->{
+                        int index=finalX*yDim+i;
+                        deltas[index]+=v-field[index];
+                    });
         }
     }
 
-    /**
-     * runs diffusion on the current field using the ADI (alternating direction implicit) method. ADI is numerically
-     * stable at any diffusion rate. Adding a boundary value to the function call will cause boundary conditions to be
-     * imposed.
-     */
-    public void DiffusionADI(double diffCoef, double boundaryValue) {
-        EnsureScratch();
-        EnsureScratchF1();
-        EnsureScratchF2();
-        DiffusionADI2(true, field, scratchField1, scratch, xDim, yDim, diffCoef / 2, true, boundaryValue);
-        DiffusionADI2(false, scratchField1, scratchField2, scratch, xDim, yDim, diffCoef / 2, true, boundaryValue);
-        for (int i = 0; i < length; i++) {
-            deltas[i]+=scratchField2[i]-field[i];
-        }
-    }
+//    /**
+//     * runs diffusion on the current field using the ADI (alternating direction implicit) method. ADI is numerically
+//     * stable at any diffusion rate. Adding a boundary value to the function call will cause boundary conditions to be
+//     * imposed.
+//     */
+//    public void DiffusionADI(double diffCoef, double boundaryValue) {
+//        EnsureScratch();
+//        EnsureScratchF1();
+//        EnsureScratchF2();
+//        DiffusionADI2(true, field, scratchField1, scratch, xDim, yDim, diffCoef / 2, true, boundaryValue);
+//        DiffusionADI2(false, scratchField1, scratchField2, scratch, xDim, yDim, diffCoef / 2, true, boundaryValue);
+//        for (int i = 0; i < length; i++) {
+//            deltas[i]+=scratchField2[i]-field[i];
+//        }
+//    }
+//    /**
+//     * runs diffusion on the current field using the ADI (alternating direction implicit) method. without a
+//     * boundaryValue argument, a zero flux boundary is imposed. wraparound will not work with ADI. ADI is numerically
+//     * stable at any diffusion rate.
+//     */
+//    public void DiffusionADI(double diffCoef, DoubleArrayToVoid BetweenAction) {
+//        EnsureScratch();
+//        EnsureScratchF1();
+//        EnsureScratchF2();
+//        DiffusionADI2(true, field, scratchField1, scratch, xDim, yDim, diffCoef / 2, false, 0);
+//        BetweenAction.Action(scratchField1);
+//        DiffusionADI2(false, scratchField1, scratchField2, scratch, xDim, yDim, diffCoef / 2, false, 0);
+//        for (int i = 0; i < length; i++) {
+//            deltas[i]+=scratchField2[i]-field[i];
+//        }
+//    }
+//
+//    /**
+//     * runs diffusion on the current field using the ADI (alternating direction implicit) method. ADI is numerically
+//     * stable at any diffusion rate. Adding a boundary value to the function call will cause boundary conditions to be
+//     * imposed.
+//     */
+//    public void DiffusionADI(double diffCoef, double boundaryValue, DoubleArrayToVoid BetweenAction) {
+//        EnsureScratch();
+//        EnsureScratchF1();
+//        EnsureScratchF2();
+//        DiffusionADI2(true, field, scratchField1, scratch, xDim, yDim, diffCoef / 2, true, boundaryValue);
+//        BetweenAction.Action(scratchField1);
+//        DiffusionADI2(false, scratchField1, scratchField2, scratch, xDim, yDim, diffCoef / 2, true, boundaryValue);
+//        for (int i = 0; i < length; i++) {
+//            deltas[i]+=scratchField2[i]-field[i];
+//        }
+//    }
 
     /**
      * gets the prev field value at the specified coordinates
@@ -157,26 +260,23 @@ public class PDEGrid2D extends GridBase2D implements Serializable {
             field[i] += deltas[i];
         }
         Arrays.fill(deltas, 0);
+        updateCt++;
     }
 
-    /**
-     * runs advection, which moves the concentrations using a constant flow with the x and y velocities passed. this
-     * version of the function assumes wrap-around, so there can be no net flux of concentrations.
-     */
+
     public void Advection(double xVel, double yVel) {
-        if(Math.abs(xVel)+Math.abs(yVel)>1){
-            throw new IllegalArgumentException("Advection rate component sum above stable maximum value of 1.0");
+        if(Math.abs(xVel)+Math.abs(yVel)>0.5){
+            throw new IllegalArgumentException("Advection rate component sum above stable maximum value of 0.5");
         }
-        Advection2(field, deltas,xVel,yVel, xDim, yDim, wrapX,wrapY,null);
+        Advection2(field, deltas,xVel,yVel, xDim, yDim, wrapX,wrapY,(x,y)->0);
     }
-
     /**
      * runs advection as described above with a boundary value, meaning that the boundary value will advect in from the
      * upwind direction, and the concentration will disappear in the downwind direction.
      */
     public void Advection(double xVel, double yVel, double boundaryValue) {
-        if(Math.abs(xVel)+Math.abs(yVel)>1){
-            throw new IllegalArgumentException("Advection rate component sum above stable maximum value of 1.0");
+        if(Math.abs(xVel)+Math.abs(yVel)>0.5){
+            throw new IllegalArgumentException("Advection rate component sum above stable maximum value of 0.5");
         }
         Advection2(field, deltas,xVel,yVel, xDim, yDim, wrapX,wrapY,(x,y)->boundaryValue);
     }
@@ -186,10 +286,35 @@ public class PDEGrid2D extends GridBase2D implements Serializable {
      * bounds coordinates as arguments whenever a boundary value is needed, and should return the boundary value
      */
     public void Advection(double xVel, double yVel, Coords2DDouble BoundaryConditionFn) {
-        if(Math.abs(xVel)+Math.abs(yVel)>1){
-            throw new IllegalArgumentException("Advection rate component sum above stable maximum value of 1.0");
+        if(Math.abs(xVel)+Math.abs(yVel)>0.5){
+            throw new IllegalArgumentException("Advection rate component sum above stable maximum value of 0.5");
         }
         Advection2(field, deltas,xVel,yVel, xDim, yDim, wrapX,wrapY,BoundaryConditionFn);
+    }
+
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(double[]xVels,double[]yVels){
+        Advection2(field,deltas,xVels,yVels,xDim,yDim,wrapX,wrapY,null,null,null);
+    }
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(Grid2Ddouble xVels,Grid2Ddouble yVels){
+        Advection2(field,deltas,xVels.field,yVels.field,xDim,yDim,wrapX,wrapY,null,null,null);
+    }
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(double[]xVels,double[]yVels,Coords2DDouble BoundaryyConditionFn, Coords2DDouble BoundaryXvels,Coords2DDouble BoundaryYvels) {
+        Advection2(field, deltas, xVels, yVels, xDim, yDim, wrapX, wrapY, BoundaryyConditionFn, BoundaryXvels, BoundaryYvels);
+    }
+    /**
+     * runs discontinuous advection
+     */
+    public void Advection(Grid2Ddouble xVels,Grid2Ddouble yVels,Coords2DDouble BoundaryyConditionFn, Coords2DDouble BoundaryXvels,Coords2DDouble BoundaryYvels){
+        Advection2(field,deltas,xVels.field,yVels.field,xDim,yDim,wrapX,wrapY,BoundaryyConditionFn, BoundaryXvels, BoundaryYvels);
     }
 
     /**
@@ -227,6 +352,34 @@ public class PDEGrid2D extends GridBase2D implements Serializable {
             throw new IllegalArgumentException("Diffusion rate above stable maximum value of 0.25 value: " + diffCoef);
         }
         Diffusion2(field, deltas,diffCoef, xDim, yDim,wrapX,wrapY,BoundaryConditionFn);
+    }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(double[] diffRates){
+        Diffusion2(field,deltas,diffRates,xDim,yDim,wrapX,wrapY,null,null);
+    }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(Grid2Ddouble diffRates){
+        Diffusion2(field,deltas,diffRates.field,xDim,yDim,wrapX,wrapY,null,null);
+    }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(double[] diffRates, Coords2DDouble BoundaryConditionFn, Coords2DDouble BoundaryDiffusionRateFn){
+        Diffusion2(field,deltas,diffRates,xDim,yDim,wrapX,wrapY,BoundaryConditionFn,BoundaryDiffusionRateFn);
+    }
+
+    /**
+     * runs diffusion with discontinuous diffusion rates
+     */
+    public void Diffusion(Grid2Ddouble diffRates, Coords2DDouble BoundaryConditionFn, Coords2DDouble BoundaryDiffusionRateFn){
+        Diffusion2(field,deltas,diffRates.field,xDim,yDim,wrapX,wrapY,BoundaryConditionFn,BoundaryDiffusionRateFn);
     }
 
     /**
@@ -340,6 +493,17 @@ public class PDEGrid2D extends GridBase2D implements Serializable {
         return up - down;
     }
 
+    /**
+     * ensures that all values will be non-negative on the next timestep, call before Update
+     */
+    public void SetNonNegative(){
+        for (int i = 0; i < length; i++) {
+            if(field[i]+deltas[i]<0){
+                Set(i,0);
+            }
+        }
+    }
+
     protected void EnsureScratch() {
         if (scratch == null) {
             scratch = new double[Math.max(xDim, yDim) * 2 + 4];
@@ -355,5 +519,30 @@ public class PDEGrid2D extends GridBase2D implements Serializable {
         if (scratchField2 == null) {
             scratchField2 = new double[field.length];
         }
+    }
+
+    @Override
+    public int Xdim() {
+        return xDim;
+    }
+
+    @Override
+    public int Ydim() {
+        return yDim;
+    }
+
+    @Override
+    public int Length() {
+        return length;
+    }
+
+    @Override
+    public boolean IsWrapX() {
+        return wrapX;
+    }
+
+    @Override
+    public boolean IsWrapY() {
+        return wrapY;
     }
 }

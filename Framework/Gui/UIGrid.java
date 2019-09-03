@@ -20,7 +20,10 @@ import java.util.Arrays;
  * a gui item that is used to efficiently visualize a grid in 2 dimensions
  * uses an array of pixels whose color values are individually set
  */
-public class UIGrid extends GridBase2D implements GuiComp {
+public class UIGrid implements Grid2D,GuiComp {
+    final public int xDim;
+    final public int yDim;
+    final public int length;
     boolean active;
     final PaintPanel panel;
     public final int scale;
@@ -42,7 +45,9 @@ public class UIGrid extends GridBase2D implements GuiComp {
      * @param active
      */
     public UIGrid(int gridW, int gridH, int scaleFactor, int compX, int compY, boolean active) {
-        super(gridW, gridH, false, false);
+        this.xDim=gridW;
+        this.yDim=gridH;
+        this.length=xDim*yDim;
         this.active = active;
         this.compX = compX;
         this.compY = compY;
@@ -71,7 +76,7 @@ public class UIGrid extends GridBase2D implements GuiComp {
      * @param scaleFactor the width and height in screen pixels of each UIGrid pixel
      */
     public UIGrid(int gridW, int gridH, int scaleFactor, boolean active) {
-        this(gridW, gridH, scaleFactor, 1, 1, true);
+        this(gridW, gridH, scaleFactor, 1, 1, active);
     }
 
     public UIGrid(int gridW, int gridH, int scaleFactor) {
@@ -338,10 +343,10 @@ public class UIGrid extends GridBase2D implements GuiComp {
         if (xs.length < 2) {
             throw new IllegalArgumentException("arrays too short, must define at least 2 points! length: " + xs.length);
         }
-        if (startPoint < 0 || startPoint > xs.length || endPoint < 0 || endPoint > xs.length || startPoint >= endPoint - 1) {
+        if (startPoint < 0 || startPoint > xs.length || endPoint < 0 || endPoint > xs.length || startPoint > endPoint - 1) {
             throw new IllegalArgumentException("invalid startPoint or endPoint for plotting " + xs.length + " points! startPoint: " + startPoint + " endPoint: " + endPoint);
         }
-        for (int i = startPoint; i < endPoint - 1; i++) {
+        for (int i = startPoint; i < endPoint; i++) {
             Util.AlongLineAction(xs[i] * scaleX, ys[i] * scaleY, xs[i + 1] * scaleX, ys[i + 1] * scaleY, (int x, int y) -> {
                 this.SetPix(x, y, color);
             });
@@ -846,6 +851,24 @@ public class UIGrid extends GridBase2D implements GuiComp {
         }
     }
 
+    public void SetPixRect(int color,int xLeft,int xRight,int yBottom,int yTop){
+        for (int x = xLeft; x < xRight; x++) {
+            for (int y = yBottom; y < yTop; y++) {
+                SetPix(x,y,color);
+            }
+        }
+    }
+
+    public void Legend(String[] labels,int[] colors,int labelsColor,int bkColor,int xLeft,int yTop){
+        int y=yTop;
+        for (int i = 0; i < labels.length; i++) {
+            SetPixRect(colors[i],xLeft,xLeft+5,y-5,y);
+            SetString(labels[i],xLeft+5,y,labelsColor,bkColor);
+            y-=6;
+        }
+
+    }
+
     /**
      * draws a single character to the UIGrid
      */
@@ -969,7 +992,7 @@ public class UIGrid extends GridBase2D implements GuiComp {
             , 6438//o
             , 4423//p
             , 7492//q
-            , 9455//r
+            , 8431//r
             , 10725//s
             , 10216//t
             , 15406//u
@@ -985,6 +1008,31 @@ public class UIGrid extends GridBase2D implements GuiComp {
             , 32767//full
 
     };
+
+    @Override
+    public int Xdim() {
+        return xDim;
+    }
+
+    @Override
+    public int Ydim() {
+        return yDim;
+    }
+
+    @Override
+    public int Length() {
+        return length;
+    }
+
+    @Override
+    public boolean IsWrapX() {
+        return false;
+    }
+
+    @Override
+    public boolean IsWrapY() {
+        return false;
+    }
 }
 class PaintPanel extends JPanel {
 

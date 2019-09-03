@@ -2,11 +2,15 @@ package Framework;
 
 import Framework.Interfaces.*;
 import Framework.Interfaces.SerializableModel;
+import Framework.Tools.FileIO;
 import Framework.Tools.Internal.SweepRun;
 
 import java.awt.*;
 import java.io.*;
 import java.lang.reflect.Array;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,6 +26,7 @@ import java.util.concurrent.Executors;
 public final class Util {
 
     public static final double DOUBLE_EPSILON = 2.22E-16;
+    private static Scanner inputReader=null;
 
     /**
      * returns a color integer based on the RGB components passed in. color values should be scaled from 0 to 1
@@ -193,6 +198,16 @@ public final class Util {
 
     //a set of categorical colors based on d3 category20
     final private static int CC0 = RGB256(56, 116, 177), CC1 = RGB256(198, 56, 44), CC2 = RGB256(79, 159, 57), CC3 = RGB256(189, 190, 58), CC4 = RGB256(142, 102, 186), CC5 = RGB256(240, 134, 39), CC6 = RGB256(83, 187, 206), CC7 = RGB256(214, 123, 191), CC8 = RGB256(133, 88, 76), CC9 = RGB256(178, 197, 230), CC10 = RGB256(243, 156, 151), CC11 = RGB256(166, 222, 144), CC12 = RGB256(220, 220, 147), CC13 = RGB256(194, 174, 211), CC14 = RGB256(246, 191, 126), CC15 = RGB256(169, 216, 228), CC16 = RGB256(238, 184, 209), CC17 = RGB256(190, 157, 146), CC18 = RGB256(199, 199, 199), CC19 = RGB256(127, 127, 127);
+
+
+    //generates a list of categorical colors
+    public static int[]CategoricalColors(int startIndex,int endIndex){
+        int[]ret=new int[endIndex-startIndex];
+        for (int i = startIndex; i < endIndex; i++) {
+            ret[i-startIndex]=CategorialColor(i);
+        }
+        return ret;
+    }
 
     /**
      * returns a color from the d3 category20 color set based on the index argument
@@ -381,6 +396,25 @@ public final class Util {
         return RGB(c2, c3, c1);
     }
 
+    public static int HeatMapJet(double val) {
+        return HeatMapJet(val,0,1);
+    }
+
+
+    public static int HeatMapJet(double val,double min,double max){
+        val=Scale0to1(val,min,max);
+        if(val<=0){
+            return RGB(0,0,0.5);
+        }
+        if(val>=1){
+            return RGB(0.5,0,0);
+        }
+        double c1=1.5-Math.abs(0.75-val)*4;
+        double c2=1.5-Math.abs(0.5-val)*4;
+        double c3=1.5-Math.abs(0.25-val)*4;
+        return RGB(c1,c2,c3);
+    }
+
     /**
      * interpoloates value from 0 to 1 to between any pair of colors
      */
@@ -458,6 +492,45 @@ public final class Util {
         return YCbCrColor(ycbcrY, x, y);
     }
 
+    public static int HsLuvColor(double x,double y){
+        double xScaled =(Bound(y,0,0.99999999))*2;
+        double yScaled=(0.99999999-Bound(x,0,0.99999999))*2;
+        int xInt=(int)xScaled;
+        int yInt=(int)yScaled;
+        xScaled=xScaled-xInt;
+        yScaled=yScaled-yInt;
+        double r=0;
+        double g=0;
+        double b=0;
+        switch (xInt){
+            case 0: switch (yInt){
+                case 0://bottom left
+                    r=Interpolate2D(xScaled,yScaled,89,200,60,158);
+                    g=Interpolate2D(xScaled,yScaled,60,60,199,157);
+                    b=Interpolate2D(xScaled,yScaled,255,255,255,158);
+                    break;
+                case 1://top left
+                    r=Interpolate2D(xScaled,yScaled,60,158,60,255);
+                    g=Interpolate2D(xScaled,yScaled,199,157,255,247);
+                    b=Interpolate2D(xScaled,yScaled,255,158,85,60);
+                    break;
+            }break;
+            case 1: switch (yInt){
+                case 0://bottom right
+                    r=Interpolate2D(xScaled,yScaled,200,255,158,255);
+                    g=Interpolate2D(xScaled,yScaled,60,60,157,60);
+                    b=Interpolate2D(xScaled,yScaled,255,230,158,106);
+                    break;
+                case 1://top right
+                    r=Interpolate2D(xScaled,yScaled,158,255,255,255);
+                    g=Interpolate2D(xScaled,yScaled,157,60,247,132);
+                    b=Interpolate2D(xScaled,yScaled,158,106,60,60);
+                    break;
+            }break;
+        }
+        return RGB256((int)r,(int)g,(int)b);
+    }
+
     /**
      * gets the max value from an array
      */
@@ -484,7 +557,7 @@ public final class Util {
      * gets the min value from an array
      */
     public static double ArrayMin(double[] arr) {
-        double min = Double.MIN_VALUE;
+        double min = Double.MAX_VALUE;
         for (double val : arr) {
             min = min < val ? min : val;
         }
@@ -495,7 +568,7 @@ public final class Util {
      * gets the min value from an array
      */
     public static int ArrayMin(int[] arr) {
-        int min = Integer.MIN_VALUE;
+        int min = Integer.MAX_VALUE;
         for (int val : arr) {
             min = min < val ? min : val;
         }
@@ -509,6 +582,17 @@ public final class Util {
         double sum = 0;
         for (double val : arr) {
             sum += val;
+        }
+        return sum;
+    }
+
+    /**
+     * sums the array
+     */
+    public static double ArraySquaredSum(double[] arr) {
+        double sum = 0;
+        for (double val : arr) {
+            sum += val*val;
         }
         return sum;
     }
@@ -547,6 +631,92 @@ public final class Util {
     }
 
     /**
+     * returns the standard deviation value of the provided array
+     */
+    static public double ArrayStdDev(double[] a){
+        double tot = 0;
+        double mean=ArrayMean(a);
+        for (int i = 0; i < a.length; i++) {
+            double dev=a[i]-mean;
+            tot+=dev*dev;
+        }
+        return Math.sqrt(tot/a.length);
+
+    }
+    /**
+     * returns the mean value of the provided array
+     */
+    static public double ArrayMean(int[] a) {
+        double tot = 0;
+        for (int i = 0; i < a.length; i++) {
+            tot += a[i];
+        }
+        return tot / a.length;
+    }
+
+    /**
+     * returns the standard deviation value of the provided array
+     */
+    static public double ArrayStdDev(int[] a){
+        double tot = 0;
+        double mean=ArrayMean(a);
+        for (int i = 0; i < a.length; i++) {
+            double dev=a[i]-mean;
+            tot+=dev*dev;
+        }
+        return Math.sqrt(tot/a.length);
+
+    }
+    /**
+     * returns the mean value of the provided array
+     */
+    static public double ArrayMean(long[] a) {
+        double tot = 0;
+        for (int i = 0; i < a.length; i++) {
+            tot += a[i];
+        }
+        return tot / a.length;
+    }
+
+    /**
+     * returns the standard deviation value of the provided array
+     */
+    static public double ArrayStdDev(long[] a){
+        double tot = 0;
+        double mean=ArrayMean(a);
+        for (int i = 0; i < a.length; i++) {
+            double dev=a[i]-mean;
+            tot+=dev*dev;
+        }
+        return Math.sqrt(tot/a.length);
+
+    }
+    /**
+     * prints an array to a string, using the .toString function, and separating entries with the delim argument
+     */
+    public static <T> String ArrToString(ArrayList<String> arr, String delim) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < arr.size() - 1; i++) {
+            sb.append(arr.get(i) + delim);
+        }
+        sb.append(arr.get(arr.size() - 1));
+        return sb.toString();
+    }
+
+    /**
+     * prints an array between start and end indices to a string, using the .toString function, and separating entries
+     * with the delim argument
+     */
+    public static <T> String ArrToString(ArrayList<String> arr, String delim, int start, int end) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = start; i < end-1; i++) {
+            sb.append(arr.get(i) + delim);
+        }
+        sb.append(arr.get(arr.size() - 1));
+        return sb.toString();
+    }
+
+    /**
      * prints an array to a string, using the .toString function, and separating entries with the delim argument
      */
     public static <T> String ArrToString(T[] arr, String delim) {
@@ -571,6 +741,37 @@ public final class Util {
         return sb.toString();
     }
 
+    public static double[]ArrayListToArrayDouble(ArrayList<Double>in){
+        double[]out=new double[in.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i]=in.get(i);
+        }
+        return out;
+    }
+
+    public static int[]ArrayListToArrayInt(ArrayList<Integer>in){
+        int[]out=new int[in.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i]=in.get(i);
+        }
+        return out;
+    }
+
+    public  static <T> T[]ArrayListToArrayObject(ArrayList<T>in){
+        T[]out=(T[])new Object[in.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i]=in.get(i);
+        }
+        return out;
+    }
+    public  static String[]ArrayListToArrayString(ArrayList<String>in){
+        String[]out=new String[in.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i]=in.get(i);
+        }
+        return out;
+    }
+
     /**
      * interpolates value from 0 to 1 to be between min and max
      */
@@ -578,6 +779,18 @@ public final class Util {
         val = Util.Bound(val, 0, 1);
         return (max - min) * val + min;
     }
+    public static double InterpolateNoBound(double val, double min, double max) {
+        return (max - min) * val + min;
+    }
+
+//    /**
+//     * interpolates value from 0 to 1 to be between min and max
+//     */
+//    public static double Interpolate(double position,double leftPoint,double rightPoint, double leftVal, double rightVal) {
+//        position-=leftPoint/(rightPoint-leftPoint);
+//        return (leftVal - rightVal) * position + leftVal;
+//
+//    }
 
     /**
      * interpolates value from 0 to 1 to be between min and max
@@ -585,6 +798,11 @@ public final class Util {
     public static double Interpolate2D(double x, double y, double bottomLeft, double bottomRight, double topLeft, double topRight) {
         x = Util.Bound(x, 0, 1);
         y = Util.Bound(y, 0, 1);
+        double bottom = (bottomRight - bottomLeft) * x + bottomLeft;
+        double top = (topRight - topLeft) * x + topLeft;
+        return (top - bottom) * y + bottom;
+    }
+    public static double Interpolate2DNoBound(double x, double y, double bottomLeft, double bottomRight, double topLeft, double topRight) {
         double bottom = (bottomRight - bottomLeft) * x + bottomLeft;
         double top = (topRight - topLeft) * x + topLeft;
         return (top - bottom) * y + bottom;
@@ -1122,7 +1340,7 @@ public final class Util {
         int x = (int) (Math.floor(x1));
         int y = (int) (Math.floor(y1));
 
-        int n = 1;
+        int n = 0;
         int x_inc, y_inc;
         double error;
 
@@ -1214,19 +1432,19 @@ public final class Util {
         int iCoord;
         int nCoords = (radX * 2 + 1) * (radY * 2 + 1);
         if (includeOrigin) {
-            dataIn = new int[nCoords * 3];
             iCoord = 1;
         } else {
-            dataIn = new int[nCoords * 3 - 3];
+            nCoords--;
             iCoord = 0;
         }
+        dataIn = new int[nCoords * 3];
         for (int x = -radX; x <= radX; x++) {
             for (int y = -radY; y <= radY; y++) {
                 if (x == 0 && y == 0) {
                     continue;
                 }
-                dataIn[iCoord * 2] = x;
-                dataIn[iCoord * 2 + 1] = y;
+                dataIn[iCoord * 2+nCoords] = x;
+                dataIn[iCoord * 2 + 1+nCoords] = y;
                 iCoord++;
             }
         }
@@ -1269,21 +1487,89 @@ public final class Util {
         return ret;
     }
 
+    public static long Log2(long n){
+        long y,v;
+        if (n < 0) {
+            throw new IllegalArgumentException("cannot take long of negative input");
+        }
+        v=n;
+        y=-1;
+        while(v>0){
+            v>>=1;
+            y++;
+        }
+        return y;
+    }
+
+    //computes log base 2 using bit shifting
+    public static int Log2(int n){
+        int y,v;
+        if (n < 0) {
+            throw new IllegalArgumentException("cannot take long of negative input");
+        }
+        v=n;
+        y=-1;
+        while(v>0){
+            v>>=1;
+            y++;
+        }
+        return y;
+    }
+
     /**
-     * Factorial of a positive integer todo: make more efficient
+     * Factorial of a positive integer, uses FactorialSplit
      *
-     * @param toFact 0 or a natural number
+     * @param n 0 or a natural number
      * @return Factorial of toFact. Factorial(0) is 1
+     *
+     * possibly refactor with lround(exp(lgamma(n+1)))
      */
-    public static int Factorial(int toFact) {
-        if (toFact < 0) {
+
+    public static long Factorial(long n) {
+        if (n < 0) {
             throw new IllegalArgumentException("Factorial input cannot be negative");
         }
-        int ret = 1;
-        for (int i = 1; i <= toFact; i++) {
-            ret *= i;
+        if(n<2){
+            return 1;
         }
-        return ret;
+        long[]currentN=new long[]{1};//rare break from tradition
+        long log2n=Log2(n);
+        long p=1,r=1,h=0,shift=0,high=1;
+        while(h!=n){
+            shift+=h;
+            h=n>>log2n--;
+            long len=high;
+            high=(h-1)|1;
+            len=(high-len)/2;
+            if(len>0){
+                p*=FactInternal(len,currentN);
+                r*=p;
+            }
+        }
+        return r<<shift;
+    }
+
+    //todo fix or get rid of this, factorial, and BinomialDistPMF
+    public static long NchooseK(long n,long k){
+        if(n<0||n<k){
+            throw new IllegalArgumentException("n and k must be > 0 and k must be <= n");
+        }
+        if(k==0||n==k){return 1;}
+        if((Factorial(k)==0)||(Factorial(n-k))==0||(Factorial(k)*Factorial(n-k))==0){
+            System.out.println("here");
+        }
+        return Factorial(n)/((Factorial(k)*Factorial(n-k)));
+    }
+
+    public static double BinomialDistPMF(long n,double p,long k){
+        return NchooseK(n,k)*Math.pow(p,k)*Math.pow(1-p,n-k);
+    }
+
+    private static long FactInternal(long n, long[] currentN){
+        long m=n/2;
+        if (m==0){return currentN[0]+=2;}
+        if(m==2){return (currentN[0]+=2)*(currentN[0]+=2);}
+        return FactInternal(n-m,currentN)*FactInternal(m,currentN);
     }
 
     /**
@@ -1296,6 +1582,40 @@ public final class Util {
     public static double PoissonProb(int sampleSize, double avg) {
         return Math.pow(Math.E, -avg) * Math.pow(avg, sampleSize) / Factorial(sampleSize);
     }
+
+    //to get distribution of agents, use std dev: n*0.125*mean_move_dist
+    public static double NormalDistPMF(double mean,double std,double pos){
+        double meanDist=mean-pos;
+        return 1/(Math.sqrt(2*Math.PI*std*std))*Math.exp(-(meanDist*meanDist)/(2*std*std));
+    }
+
+//    public static double BinomialDistPDF(long n,double p, long pos){
+//        Math.l
+//    }
+
+    /**
+     * transforms val with a sigmoid curve with the given properties
+     *
+     * @param val         the input value
+     * @param stretch     linearly scales the sigmoid curve in the x dimension, the default is 1
+     * @param inflectionX the point at which the slope changes sign
+     * @param minCap      the minimum return value of the sigmoid function
+     * @param maxCap      the maximum return value of the sigmoid function
+     */
+    public static double Sigmoid(double val, double stretch, double inflectionX, double minCap, double maxCap) {
+        return minCap + ((maxCap - minCap)) / (1.0 + Math.exp(((-val) + inflectionX) / stretch));
+    }
+
+    /**
+     * transforms val with a sigmoid curve with a minCap of 0, a maxCap of 1, and an inflectionX value of 0
+     *
+     * @param val     the input value
+     * @param stretch linearly scales the sigmoid curve in the x dimension, the default is 1
+     */
+    public static double Sigmoid(double val, double stretch) {
+        return 1 / (1.0 + Math.exp(-val / stretch));
+    }
+
 
 
 //    /**
@@ -1346,6 +1666,14 @@ public final class Util {
     public static boolean MakeDirs(String path) {
         File dir = new File(path);
         return dir.mkdirs();
+    }
+
+    public static boolean IsPath(String path){
+        File f=new File(path);
+        if(f.isFile()||f.isDirectory()){
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -1594,7 +1922,7 @@ public final class Util {
                 p1 = p1 + dim;
             }
         }
-        return p1 - p2;
+        return p2-p1;
     }
 
 
@@ -1676,42 +2004,21 @@ public final class Util {
     }
 
     /**
-     * adjusts probability that an event will occur in 1 unit of time to the probability that the event will occur in
-     * timeFraction duration
+     * adjusts probability that an event will occur in 1 unit of time to the probability that the event will occur at
+     * least once over the duration
      *
      * @param prob     probability that an event occurs in 1 unit of time
      * @param duration duration in units of time over which event may occur
-     * @return the probability that the event will occur in timeFraction
+     * @return the probability that the event will occur at least once over the duration
      */
     public static double ProbScale(double prob, double duration) {
         return 1.0f - (Math.pow(1.0 - prob, duration));
 
     }
 
-
     /**
-     * transforms val with a sigmoid curve with the given properties
-     *
-     * @param val         the input value
-     * @param stretch     linearly scales the sigmoid curve in the x dimension, the default is 1
-     * @param inflectionX the point at which the slope changes sign
-     * @param minCap      the minimum return value of the sigmoid function
-     * @param maxCap      the maximum return value of the sigmoid function
+     * gets the probability density value for a position in a normal distribution with given mean and standard deviation
      */
-    public static double Sigmoid(double val, double stretch, double inflectionX, double minCap, double maxCap) {
-        return minCap + ((maxCap - minCap)) / (1.0 + Math.exp(((-val) + inflectionX) / stretch));
-    }
-
-    /**
-     * transforms val with a sigmoid curve with a minCap of 0, a maxCap of 1, and an inflectionX value of 0
-     *
-     * @param val     the input value
-     * @param stretch linearly scales the sigmoid curve in the x dimension, the default is 1
-     */
-    public static double Sigmoid(double val, double stretch) {
-        return 1 / (1.0 + Math.exp(-val / stretch));
-    }
-
 
     /**
      * returns a timestamp of the form "yyyy_MM_dd_HH_mm_ss" as a string
@@ -1791,6 +2098,23 @@ public final class Util {
         return validCt;
     }
 
+    /**
+     * finds the area of overlap between 2 circles of equal radii
+     */
+    public static double CircleOverlapArea(double radii,double centerDist){
+        return 2*radii*radii*Math.acos(centerDist/(2*radii))-0.5*Math.sqrt(centerDist*centerDist*(2*radii-centerDist)*(2*radii+centerDist));
+    }
+    public static double CircleOverlapArea(double r1,double r2,double centerDist){
+        double d=centerDist;
+        double dsq=d*d;
+        double r1sq=r1*r1;
+        double r2sq=r2*r2;
+        double term1=r1sq*Math.acos((dsq+r1sq-r2sq)/(2*d*r1));
+        double term2=r2sq*Math.acos((dsq+r2sq-r1sq)/(2*d*r2));
+        double term3=0.5*Math.sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2));
+        return term1+term2-term3;
+    }
+
 
     /**
      * Creates a thread pool and
@@ -1846,6 +2170,13 @@ public final class Util {
             }
         }
         return null;
+    }
+
+    public static String AwaitInput(){
+        if(inputReader==null){
+            inputReader=new Scanner(System.in);
+        }
+        return inputReader.nextLine();
     }
 
     /**
@@ -1908,6 +2239,159 @@ public final class Util {
         return (T) ret;
     }
 
+    //REFLECTION
+    public static boolean IsMethodOverridden(Class derived,Class base,String methodName){
+        Method[] meths=derived.getDeclaredMethods();
+        Method[] baseMeths=base.getDeclaredMethods();
+        for (Method meth : meths) {
+            if(meth.getName().equals(methodName)) {
+                return true;
+            }
+        }
+        boolean found=false;
+        for (Method meth : baseMeths) {
+            if(meth.getName().equals(methodName)) {
+                found=true;
+                break;
+            }
+        }
+        if(!found) {
+            throw new IllegalArgumentException("name "+methodName+" not found in base class "+base.getName()+"!");
+        }
+        return false;
+    }
+
+    public static<T,O extends T> boolean IsMethodOverridden(Class<O> derived,String methodName){
+        Method[] meths=derived.getDeclaredMethods();
+        for (Method meth : meths) {
+            if(meth.getName().equals(methodName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    public static double[] MatVecMul(final double[] mat,final double[] vec,double[]out){
+        final int nCols=vec.length;
+        final int nRows=mat.length/nCols;
+        for (int y = 0; y < nRows; y++) {
+            out[y]=mat[y*nCols]*vec[0];
+            for (int x = 1; x < nCols; x++) {
+                out[y]+=mat[y*nCols+x]*vec[x];
+            }
+        }
+        return out;
+    }
+    public static void MatrixToCSV(double[][]mat,String filePath){
+        FileIO out=new FileIO(filePath,"w");
+        for (double[]row : mat) {
+            out.Write(ArrToString(row,",")+"\n");
+        }
+        out.Close();
+    }
+
+    public static void MatrixToCSV(long[][]mat,String filePath){
+        FileIO out=new FileIO(filePath,"w");
+        for (long[]row : mat) {
+            out.Write(ArrToString(row,",")+"\n");
+        }
+        out.Close();
+    }
+    public static void MatrixToCSV(int[][]mat,String filePath){
+        FileIO out=new FileIO(filePath,"w");
+        for (int[]row : mat) {
+            out.Write(ArrToString(row,",")+"\n");
+        }
+        out.Close();
+    }
+
+    //Py4j byte array functions
+
+    static public byte[] Py4jDoublesOut(double[]doubles){
+        ByteBuffer out= ByteBuffer.allocate(Double.BYTES*doubles.length);
+        out.order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < doubles.length; i++) {
+            out.putDouble(doubles[i]);
+        }
+        return out.array();
+    }
+    static public byte[] Py4jDoublesOut(double[][]doubles){
+        int maxLen=0;
+        for (int i = 0; i < doubles.length; i++) {
+            maxLen=Math.max(doubles[i].length,maxLen);
+        }
+        ByteBuffer out= ByteBuffer.allocate(Double.BYTES*doubles.length*maxLen);
+        out.order(ByteOrder.LITTLE_ENDIAN);
+        for (int j = 0; j < doubles.length; j++) {
+            double[] row=doubles[j];
+        for (int i = 0; i < maxLen; i++) {
+            if(row.length>i) {
+                out.putDouble(row[i]);
+            }else{
+                out.putDouble(0);
+            }
+        }
+        }
+        return out.array();
+    }
+    static public byte[] Py4jDoublesOut(ArrayList<double[]> doubles){
+        int maxLen=0;
+        for (int i = 0; i < doubles.size(); i++) {
+            maxLen=Math.max(doubles.get(i).length,maxLen);
+        }
+        ByteBuffer out= ByteBuffer.allocate(Double.BYTES* doubles.size() *maxLen);
+        out.order(ByteOrder.LITTLE_ENDIAN);
+        for (int j = 0; j < doubles.size(); j++) {
+            double[] row= doubles.get(j);
+            for (int i = 0; i < maxLen; i++) {
+                if(row.length>i) {
+                    out.putDouble(row[i]);
+                }else{
+                    out.putDouble(0);
+                }
+            }
+        }
+        return out.array();
+    }
+
+    static public ArrayList<double[]> Py4jDoublesInAsArrayList(byte[] in,int nRows) {
+        int length = in.length / Double.BYTES;
+        ArrayList<double[]> out = new ArrayList<>(nRows);
+        ByteBuffer buf = ByteBuffer.wrap(in);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < nRows; i++) {
+            out.add(new double[length/nRows]);
+            double[] row = out.get(out.size()-1);
+            for (int j = 0; j < row.length; j++) {
+                row[j] = buf.getDouble();
+            }
+        }
+        return out;
+    }
+    static public double[][] Py4jDoublesIn(byte[] in,int nRows) {
+        int length = in.length / Double.BYTES;
+        double[][] out = new double[nRows][length / nRows];
+        ByteBuffer buf = ByteBuffer.wrap(in);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < out.length; i++) {
+            double[] row = out[i];
+            for (int j = 0; j < row.length; j++) {
+                row[j] = buf.getDouble();
+            }
+        }
+        return out;
+    }
+    static public double[] Py4jDoublesIn(byte[] in){
+        int length=in.length/Double.BYTES;
+        double[]out=new double[length];
+        ByteBuffer buf=ByteBuffer.wrap(in);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < length; i++) {
+            out[i]=buf.getDouble();
+        }
+        return out;
+    }
+
+
     static int InterpComp(double val, int minComp, int maxComp) {
         return (int) ((maxComp - minComp) * val) + minComp;
     }
@@ -1941,6 +2425,30 @@ public final class Util {
             return lo;
         }
     }
+
+    static public void Sort(IsEntry1Before2 Compare, SwapEntries Swap, int length){
+            _SortHelper(Compare, Swap, 0, length - 1);
+        }
+
+        static private void _SortHelper(IsEntry1Before2 Compare, SwapEntries Swap, int lo, int hi) {
+            if (lo < hi) {
+                int p = _Partition(Compare,Swap, lo, hi);
+                _SortHelper(Compare, Swap, lo, p - 1);
+                _SortHelper(Compare, Swap, p + 1, hi);
+            }
+        }
+
+        static private int _Partition(IsEntry1Before2 Compare, SwapEntries Swap, int lo, int hi) {
+                for (int j = lo; j < hi; j++) {
+                    if (!Compare.Compare(hi, j)) {
+                        Swap.Swap(lo, j);
+                        lo++;
+                    }
+                }
+                Swap.Swap(lo, hi);
+                return lo;
+        }
+
     static byte[] StateFromFile(String stateBytesFile) {
         Path path = Paths.get(stateBytesFile);
         try {
@@ -2037,3 +2545,4 @@ public final class Util {
 //        return ret;
 //    }
 }
+

@@ -21,8 +21,16 @@ TumorEvolution.java uses the open-source agent-based modeling platform called [H
 
 ### References
 
-1. [Jeffrey West, Ryan Schenck, Chandler Gatenbee, Mark Robertson-Tessi, Alexander RA Anderson. Tissue structure accelerates evolution: premalignant sweeps precede neutral expansion. 2019. bioRxiv.](https://www.biorxiv.org/content/10.1101/542019v2)
+1. [Chandler D. Gatenbee, Ryan O. Schenck, Rafael Bravo, Alexander R.A. Anderson. EvoFreq: Visualization of the Evolutionary Frequencies of Sequence and Model Data. 2019. bioRxiv.](https://www.biorxiv.org/content/10.1101/743815v1)
 
-2. [Hybrid Automata Library: A modular platform for efficient hybrid modeling with real-time visualization
+2. [Jeffrey West, Ryan Schenck, Chandler Gatenbee, Mark Robertson-Tessi, Alexander RA Anderson. Tissue structure accelerates evolution: premalignant sweeps precede neutral expansion. 2019. bioRxiv.](https://www.biorxiv.org/content/10.1101/542019v2)
+
+3. [Hybrid Automata Library: A modular platform for efficient hybrid modeling with real-time visualization
 Rafael Bravo, Etienne Baratchart, Jeffrey West, Ryan O. Schenck, Anna K. Miller, Jill Gallaher, Chandler D. Gatenbee, David Basanta, Mark Robertson-Tessi, Alexander R. A. Anderson
 bioRxiv 411538.](https://www.biorxiv.org/content/10.1101/411538v4)
+
+![Magma RPlot](media/Rplot_colors.png)
+
+![Colored By HAL Scheme RPlot](data-output/RplotMagma.png)
+
+![HAL Gif](data-output/tumor_evolution.gif)

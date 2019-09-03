@@ -1,76 +1,86 @@
-package Framework.GridsAndAgents;
+package Framework.Interfaces;
 
-import Framework.Interfaces.*;
+import Framework.Rand;
 import Framework.Util;
 
-import java.io.Serializable;
-
-import static Framework.Util.Norm;
-import static Framework.Util.NormSquared;
+import static Framework.Util.*;
 
 /**
  * holds functions that all 2D Grids share
  */
-public abstract class GridBase2D implements Serializable {
-    public final int xDim;
-    public final int yDim;
-    public final int length;
-    public boolean wrapX;
-    public boolean wrapY;
-    int tick;
+public abstract interface Grid2D {
 
     /**
      * gets the index of the square at the specified coordinates
      */
-    public int I(int x, int y) {
+    default public int I(int x, int y) {
         //gets typeGrid index from location
-        return x * yDim + y;
+        return x * Ydim() + y;
     }
 
     /**
      * gets the index of the square at the specified coordinates with wrap around
      */
-    public int WrapI(int x, int y) {
+    default public int WrapI(int x, int y) {
         //wraps Coords to proper index
         if (In(x, y)) {
             return I(x, y);
         }
-        return I(Util.Wrap(x, xDim), Util.Wrap(y, yDim));
+        if(IsWrapX()) {
+            x=Util.Wrap(x, Xdim());
+        }
+        if(IsWrapY()) {
+            y=Util.Wrap(y, Xdim());
+        }
+        if(In(x,y)) {
+            return I(x, y);
+        }
+        throw new IllegalArgumentException("cannot map to index in bounds!" );
     }
 
     /**
      * gets the xDim component of the square at the specified index
      */
-    public int ItoX(int i) {
-        return i / yDim;
+    default public int ItoX(int i) {
+        return i / Ydim();
     }
 
     /**
      * gets the yDim component of the square at the specified index
      */
-    public int ItoY(int i) {
-        return i % yDim;
+    default public int ItoY(int i) {
+        return i % Ydim();
     }
 
     /**
      * gets the index of the square that contains the specified coordinates
      */
-    public int I(double x, double y) {
+    default public int I(double x, double y) {
         //gets typeGrid index from location
-        return (int) Math.floor(x) * yDim + (int) Math.floor(y);
+        return (int) Math.floor(x) * Ydim() + (int) Math.floor(y);
     }
 
     /**
      * returns whether the specified coordinates are inside the typeGrid bounds
      */
-    public boolean In(int x, int y) {
-        return x >= 0 && x < xDim && y >= 0 && y < yDim;
+    default public boolean In(int x, int y) {
+        return x >= 0 && x < Xdim() && y >= 0 && y < Ydim();
+    }
+
+    /**
+     * returns whether the specified coordinates are inside the Grid bounds with wraparound
+     */
+    default public boolean InWrap(int x,int y) {
+        if (IsWrapX() || InDim(x, Xdim()) && (IsWrapY() || InDim(y, Ydim()))) {
+            return true;
+        }
+        return false;
     }
 
     /**
      * returns whether the specified coordinates are inside the typeGrid bounds
      */
-    public boolean In(double x, double y) {
+    default public boolean In(double x, double y) {
         int xInt = (int) Math.floor(x);
         int yInt = (int) Math.floor(y);
         return In(xInt, yInt);
@@ -79,16 +89,16 @@ public abstract class GridBase2D implements Serializable {
     /**
      * applies the action function to all positions in the rectangle, will use wraparound if appropriate
      */
-    public void ApplyRectangle(int startX, int startY, int width, int height, Coords2DAction Action) {
+    default public void ApplyRectangle(int startX, int startY, int width, int height, Coords2DAction Action) {
         for (int x = startX; x < startX + width; x++) {
             for (int y = startY; y < startY + height; y++) {
                 int xFinal = x;
                 int yFinal = y;
-                if (wrapX) {
-                    xFinal = Util.Wrap(x, xDim);
+                if (IsWrapX()) {
+                    xFinal = Util.Wrap(x, Xdim());
                 }
-                if (wrapY) {
-                    yFinal = Util.Wrap(y, yDim);
+                if (IsWrapY()) {
+                    yFinal = Util.Wrap(y, Ydim());
                 }
                 Action.Action(xFinal, yFinal);
             }
@@ -99,7 +109,7 @@ public abstract class GridBase2D implements Serializable {
      * applies the action function to all positions in the neighborhood up to validCount, assumes the neighborhood is
      * already mapped
      */
-    public void ApplyHoodMapped(int[] hood, int validCount, IndexAction Action) {
+    default public void ApplyHoodMapped(int[] hood, int validCount, IndexAction Action) {
         for (int i = 0; i < validCount; i++) {
             Action.Action(hood[i]);
         }
@@ -108,29 +118,29 @@ public abstract class GridBase2D implements Serializable {
     /**
      * applies the action function to all positions in the neighborhood
      */
-    public int ApplyHood(int[] hood, int centerI, Coords2DAction Action) {
+    default public int ApplyHood(int[] hood, int centerI, Coords2DAction Action) {
         return ApplyHood(hood, ItoX(centerI), ItoY(centerI), Action);
     }
 
     /**
      * applies the action function to all positions in the neighborhood
      */
-    public int ApplyHood(int[] hood, int centerX, int centerY, Coords2DAction Action) {
+    default public int ApplyHood(int[] hood, int centerX, int centerY, Coords2DAction Action) {
         int ptCt = 0;
         int iStart = hood.length / 3;
         for (int i = iStart; i < hood.length; i += 2) {
             int x = hood[i] + centerX;
             int y = hood[i + 1] + centerY;
-            if (!Util.InDim(x, xDim)) {
-                if (wrapX) {
-                    x = Util.Wrap(x, xDim);
+            if (!Util.InDim(x, Xdim())) {
+                if (IsWrapX()) {
+                    x = Util.Wrap(x, Xdim());
                 } else {
                     continue;
                 }
             }
-            if (!Util.InDim(y, yDim)) {
-                if (wrapY) {
-                    y = Util.Wrap(y, yDim);
+            if (!Util.InDim(y, Ydim())) {
+                if (IsWrapY()) {
+                    y = Util.Wrap(y, Ydim());
                 } else {
                     continue;
                 }
@@ -146,7 +156,7 @@ public abstract class GridBase2D implements Serializable {
      * returns the number of valid locations it set. this function differs from HoodToIs and CoordsToIs in that it takes
      * no ret[], MapHood instead puts the result of the mapping back into the hood array.
      */
-    public int MapHood(int[] hood, int iCenter) {
+    default public int MapHood(int[] hood, int iCenter) {
         //moves coordinates to be around origin
         //if any of the coordinates are outside the bounds, they will not be added
         return MapHood(hood, ItoX(iCenter), ItoY(iCenter));
@@ -157,7 +167,7 @@ public abstract class GridBase2D implements Serializable {
      * EvaluationFunctoin. this function should take as argument (i,x,y) of a location and return a boolean that decides
      * whether that location should be included as a valid one.
      */
-    public int MapHood(int[] hood, int centerX, int centerY, IndexCoords2DBool Eval) {
+    default public int MapHood(int[] hood, int centerX, int centerY, IndexCoords2DBool Eval) {
         //moves coordinates to be around origin
         //if any of the coordinates are outside the bounds, they will not be added
         int ptCt = 0;
@@ -165,16 +175,16 @@ public abstract class GridBase2D implements Serializable {
         for (int i = iStart; i < hood.length; i += 2) {
             int x = hood[i] + centerX;
             int y = hood[i + 1] + centerY;
-            if (!Util.InDim(x, xDim)) {
-                if (wrapX) {
-                    x = Util.Wrap(x, xDim);
+            if (!Util.InDim(x, Xdim())) {
+                if (IsWrapX()) {
+                    x = Util.Wrap(x, Xdim());
                 } else {
                     continue;
                 }
             }
-            if (!Util.InDim(y, yDim)) {
-                if (wrapY) {
-                    y = Util.Wrap(y, yDim);
+            if (!Util.InDim(y, Ydim())) {
+                if (IsWrapY()) {
+                    y = Util.Wrap(y, Ydim());
                 } else {
                     continue;
                 }
@@ -193,7 +203,7 @@ public abstract class GridBase2D implements Serializable {
      * EvaluationFunctoin. this function should take as argument (i,x,y) of a location and return a boolean that decides
      * whether that location should be included as a valid one.
      */
-    public int MapHood(int[] hood, int iCenter, IndexCoords2DBool Eval) {
+    default public int MapHood(int[] hood, int iCenter, IndexCoords2DBool Eval) {
         return MapHood(hood, ItoX(iCenter), ItoY(iCenter), Eval);
     }
 
@@ -203,7 +213,7 @@ public abstract class GridBase2D implements Serializable {
      * returns the number of valid locations it set. this function differs from HoodToIs and CoordsToIs in that it takes
      * no ret[], MapHood instead puts the result of the mapping back into the hood array.
      */
-    public int MapHood(int[] hood, int centerX, int centerY) {
+    default public int MapHood(int[] hood, int centerX, int centerY) {
         //moves coordinates to be around origin
         //if any of the coordinates are outside the bounds, they will not be added
         int ptCt = 0;
@@ -211,16 +221,16 @@ public abstract class GridBase2D implements Serializable {
         for (int i = iStart; i < hood.length; i += 2) {
             int x = hood[i] + centerX;
             int y = hood[i + 1] + centerY;
-            if (!Util.InDim(x, xDim)) {
-                if (wrapX) {
-                    x = Util.Wrap(x, xDim);
+            if (!Util.InDim(x, Xdim())) {
+                if (IsWrapX()) {
+                    x = Util.Wrap(x, Xdim());
                 } else {
                     continue;
                 }
             }
-            if (!Util.InDim(y, yDim)) {
-                if (wrapY) {
-                    y = Util.Wrap(y, yDim);
+            if (!Util.InDim(y, Ydim())) {
+                if (IsWrapY()) {
+                    y = Util.Wrap(y, Ydim());
                 } else {
                     continue;
                 }
@@ -234,15 +244,15 @@ public abstract class GridBase2D implements Serializable {
     /**
      * returns a list of indices, where each index maps to one square on the boundary of the grid
      */
-    public int[] BoundaryIs() {
-        int[] ret = new int[(xDim + yDim) * 2];
-        for (int x = 0; x < xDim; x++) {
+    default public int[] BoundaryIs() {
+        int[] ret = new int[(Xdim() + Ydim()) * 2];
+        for (int x = 0; x < Xdim(); x++) {
             ret[x] = I(x, 0);
-            ret[x + xDim] = I(x, yDim - 1);
+            ret[x + Xdim()] = I(x, Ydim() - 1);
         }
-        for (int y = 0; y < yDim; y++) {
-            ret[y + xDim * 2] = I(0, y);
-            ret[y + xDim * 2 + yDim] = I(xDim - 1, y);
+        for (int y = 0; y < Ydim(); y++) {
+            ret[y + Xdim() * 2] = I(0, y);
+            ret[y + Xdim() * 2 + Ydim()] = I(Xdim() - 1, y);
         }
         return ret;
     }
@@ -250,28 +260,28 @@ public abstract class GridBase2D implements Serializable {
     /**
      * returns whether a valid index exists in the neighborhood
      */
-    public boolean ContainsValidI(int[] hood, int centerI, Coords2DBool IsValid) {
+    default public boolean ContainsValidI(int[] hood, int centerI, Coords2DBool IsValid) {
         return ContainsValidI(hood, ItoX(centerI), ItoY(centerI), IsValid);
     }
 
     /**
      * returns whether a valid index exists in the neighborhood
      */
-    public boolean ContainsValidI(int[] hood, int centerX, int centerY, Coords2DBool IsValid) {
+    default public boolean ContainsValidI(int[] hood, int centerX, int centerY, Coords2DBool IsValid) {
         int iStart = hood.length / 3;
         for (int i = iStart; i < hood.length; i += 2) {
             int x = hood[i] + centerX;
             int y = hood[i + 1] + centerY;
-            if (!Util.InDim(x, xDim)) {
-                if (wrapX) {
-                    x = Util.Wrap(x, xDim);
+            if (!Util.InDim(x, Xdim())) {
+                if (IsWrapX()) {
+                    x = Util.Wrap(x, Xdim());
                 } else {
                     continue;
                 }
             }
-            if (!Util.InDim(y, yDim)) {
-                if (wrapY) {
-                    y = Util.Wrap(y, yDim);
+            if (!Util.InDim(y, Ydim())) {
+                if (IsWrapY()) {
+                    y = Util.Wrap(y, Ydim());
                 } else {
                     continue;
                 }
@@ -287,66 +297,45 @@ public abstract class GridBase2D implements Serializable {
     /**
      * returns the index of the center of the square in otherGrid that the coordinate maps to.
      */
-    public int ConvXsq(int x, GridBase2D other) {
-        return (int) (((x + 0.5) * other.xDim) / xDim);
+    default public int MapXsq(int x, Grid2D other) {
+        return (int) (((x + 0.5) * other.Xdim()) / Xdim());
     }
 
     /**
      * returns the index of the center of the square in otherGrid that the coordinate maps to.
      */
-    public int ConvYsq(int y, GridBase2D other) {
-        return (int) (((y + 0.5) * other.yDim) / yDim);
+    default public int MapYsq(int y, Grid2D other) {
+        return (int) (((y + 0.5) * other.Ydim()) / Ydim());
     }
 
     /**
      * returns the index of the center of the square in otherGrid that the coordinate maps to.
      */
-    public int ConvI(int i, GridBase2D other) {
+    default public int MapI(int i, Grid2D other) {
         int x = ItoX(i);
         int y = ItoY(i);
-        return other.I(ConvXsq(x, other), ConvYsq(y, other));
+        return other.I(MapXsq(x, other), MapYsq(y, other));
     }
 
     /**
      * returns the position that x rescales to in the other grid
      */
-    public double ConvXpt(double x, GridBase2D other) {
-        return x * other.xDim / xDim;
+    default public double MapXpt(double x, Grid2D other) {
+        return x * other.Xdim() / Xdim();
     }
 
     /**
      * returns the position that y rescales to in the other grid
      */
-    public double ConvYpt(double y, GridBase2D other) {
-        return y * other.yDim / yDim;
+    default public double MapYpt(double y, Grid2D other) {
+        return y * other.Ydim() / Ydim();
     }
 
-    /**
-     * increments the internal grid tick counter by 1, used with the Age() and BirthTick() functions to get age
-     * information about the agents on an AgentGrid. can otherwise be used as a counter with the other grid types.
-     */
-    public void IncTick() {
-        tick++;
-    }
-
-    /**
-     * gets the current grid timestep.
-     */
-    public int GetTick() {
-        return tick;
-    }
-
-    /**
-     * sets the tick to 0.
-     */
-    public void ResetTick() {
-        tick = 0;
-    }
 
     /**
      * returns the set of indicies of squares that the line between (x1,y1) and (x2,y2) touches.
      */
-    public int AlongLineIs(double x1, double y1, double x2, double y2, int[] writeHere) {
+    default public int AlongLineIs(double x1, double y1, double x2, double y2, int[] writeHere) {
         double dx = Math.abs(x2 - x1);
         double dy = Math.abs(y2 - y1);
 
@@ -400,12 +389,46 @@ public abstract class GridBase2D implements Serializable {
     }
 
     /**
+     * gets a random index from the full neighborhood, if the index does not map, returns -1
+     */
+
+    default public int RandomHoodI(int[]hood, int centerX, int centerY, Rand rng){
+        int i=rng.Int(hood.length/3);
+        return GetHoodI(hood,centerX,centerY,i);
+    }
+
+
+    /**
+     * gets a specified index from the hood after mapping to the center position
+     */
+    public default int GetHoodI(int[]hood,int centerX,int centerY,int entryIndex){
+        int i=entryIndex*2+hood.length/3;
+        int x=hood[i*2]+centerX;
+        int y=hood[i*2+1]+centerY;
+        if (!Util.InDim(x, Xdim())) {
+            if (IsWrapX()) {
+                x = Util.Wrap(x, Xdim());
+            } else {
+                return -1;
+            }
+        }
+        if (!Util.InDim(y, Ydim())) {
+            if (IsWrapY()) {
+                y = Util.Wrap(y, Ydim());
+            } else {
+                return -1;
+            }
+        }
+        return I(x,y);
+    }
+
+    /**
      * gets the displacement from the first coorinate to the second. using wraparound if allowed over the given axis to
      * find the shortest displacement.
      */
-    public double DispX(double x1, double x2) {
-        if (wrapX) {
-            return Util.DispWrap(x2, x1, xDim);
+    default public double DispX(double x1, double x2) {
+        if (IsWrapX()) {
+            return Util.DispWrap(x2, x1, Xdim());
         } else {
             return x2 - x1;
         }
@@ -415,9 +438,9 @@ public abstract class GridBase2D implements Serializable {
      * gets the displacement from the first coorinate to the second. using wraparound if allowed over the given axis to
      * find the shortest displacement.
      */
-    public double DispY(double y1, double y2) {
-        if (wrapY) {
-            return Util.DispWrap(y2, y1, yDim);
+    default public double DispY(double y1, double y2) {
+        if (IsWrapY()) {
+            return Util.DispWrap(y2, y1, Ydim());
         } else {
             return y2 - y1;
         }
@@ -427,7 +450,7 @@ public abstract class GridBase2D implements Serializable {
      * gets the distance between two positions with or without grid wrap around (if wraparound is enabled, the shortest
      * distance taking this into account will be returned)
      */
-    public double Dist(double x1, double y1, double x2, double y2) {
+    default public double Dist(double x1, double y1, double x2, double y2) {
         double dx = DispX(x1, y1);
         double dy = DispY(x2, y2);
         return Norm(dx, dy);
@@ -438,20 +461,23 @@ public abstract class GridBase2D implements Serializable {
      * shortest distance taking this into account will be returned) more efficient than the Dist function above as it
      * skips a square-root calculation.
      */
-    public double DistSquared(double x1, double y1, double x2, double y2) {
+    default public double DistSquared(double x1, double y1, double x2, double y2) {
         double xDisp = DispX(x1, x2);
         double yDisp = DispY(y1, y2);
         return NormSquared(xDisp, yDisp);
 
     }
 
-    public GridBase2D(int xDim, int yDim, boolean wrapX, boolean wrapY) {
-        this.xDim = xDim;
-        this.yDim = yDim;
-        this.wrapX = wrapX;
-        this.wrapY = wrapY;
-        this.length = xDim * yDim;
-    }
+
+    public int Xdim();
+
+    public int Ydim();
+
+    public int Length();
+
+    public boolean IsWrapX();
+
+    public boolean IsWrapY();
 
 }
 

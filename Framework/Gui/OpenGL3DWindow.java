@@ -1,6 +1,7 @@
 package Framework.Gui;
 
 import Framework.Interfaces.ColorIntGenerator;
+import Framework.Interfaces.Grid3D;
 import Framework.Util;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.LWJGLException;
@@ -21,11 +22,12 @@ import static org.lwjgl.opengl.GL11.*;
 /**
  * Created by rafael on 5/28/17.
  */
-public class OpenGL3DWindow {
+public class OpenGL3DWindow implements Grid3D {
     final boolean active;
     public final int xDim;
     public final int yDim;
     public final int zDim;
+    public final int length;
     final int maxDim;
     final float scaleDims;
     final float trans;
@@ -55,6 +57,7 @@ public class OpenGL3DWindow {
         this.xDim = xDim;
         this.yDim = yDim;
         this.zDim = zDim;
+        this.length=xDim*yDim*zDim;
         this.xPix = xPix;
         this.yPix = yPix;
         scaleDims = (float) (2.0 / this.maxDim);
@@ -245,6 +248,53 @@ public class OpenGL3DWindow {
             glPopMatrix();
         }
     }
+    public void SetPixXY(int x,int y,int color){
+        RectangleXY(x,y,x+1,y+1,zDim,color);
+    }
+
+    public void SetPixXZ(int x,int z,int color){
+        RectangleXZ(x,z,x+1,z+1,0,color);
+    }
+
+    public void SetPixYZ(int y,int z,int color){
+        RectangleYZ(y,z,y+1,z+1,0,color);
+    }
+    /**
+     * draws a rectangle between (x1,y1,z) and (x2,y2,z)
+     */
+    public void RectangleXY(double x1, double y1, double x2, double y2, double z, int color) {
+        if (active) {
+            glColor4f((float) GetRed(color), (float) GetGreen(color), (float) GetBlue(color), (float) GetAlpha(color));
+            glBegin(GL_QUADS);
+            glVertex3f((float) x1+trans, (float) y1+trans,(float)-z+trans);
+            glVertex3f((float) x2+trans, (float) y1+trans,(float)-z+trans);
+            glVertex3f((float) x2+trans, (float) y2+trans,(float)-z+trans);
+            glVertex3f((float) x1+trans, (float) y2+trans,(float)-z+trans);
+            glEnd();
+        }
+    }
+    public void RectangleXZ(double x1, double z1, double x2, double z2, double y, int color) {
+        if (active) {
+            glColor4f((float) GetRed(color), (float) GetGreen(color), (float) GetBlue(color), (float) GetAlpha(color));
+            glBegin(GL_QUADS);
+            glVertex3f((float) x1+trans, (float) y+trans,(float)-z1+trans);
+            glVertex3f((float) x2+trans, (float) y+trans,(float)-z1+trans);
+            glVertex3f((float) x2+trans, (float) y+trans,(float)-z2+trans);
+            glVertex3f((float) x1+trans, (float) y+trans,(float)-z2+trans);
+            glEnd();
+        }
+    }
+    public void RectangleYZ(double y1, double z1, double y2, double z2, double x, int color) {
+        if (active) {
+            glColor4f((float) GetRed(color), (float) GetGreen(color), (float) GetBlue(color), (float) GetAlpha(color));
+            glBegin(GL_QUADS);
+            glVertex3f((float) x+trans, (float) y1+trans,(float)-z1+trans);
+            glVertex3f((float) x+trans, (float) y1+trans,(float)-z2+trans);
+            glVertex3f((float) x+trans, (float) y2+trans,(float)-z2+trans);
+            glVertex3f((float) x+trans, (float) y2+trans,(float)-z1+trans);
+            glEnd();
+        }
+    }
 
     /**
      * draws a fan shape around the center x and y, using the array of points to define the edges of the fan. used as
@@ -367,6 +417,41 @@ public class OpenGL3DWindow {
             }
 
         }
+    }
+
+    @Override
+    public int Xdim() {
+        return xDim;
+    }
+
+    @Override
+    public int Ydim() {
+        return yDim;
+    }
+
+    @Override
+    public int Zdim() {
+        return zDim;
+    }
+
+    @Override
+    public int Length() {
+        return length;
+    }
+
+    @Override
+    public boolean IsWrapX() {
+        return false;
+    }
+
+    @Override
+    public boolean IsWrapY() {
+        return false;
+    }
+
+    @Override
+    public boolean IsWrapZ() {
+        return false;
     }
 }
 

@@ -4,3 +4,5 @@
 *.xml
 
 out/
+
+data-output/.Rhistory
