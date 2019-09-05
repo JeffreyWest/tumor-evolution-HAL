@@ -1,4 +1,6 @@
-## Tissue structure accelerates evolution: premalignant sweeps precede neutral invasion
+## HAL + EvoFreq tutorial
+
+[Click here for the blog tutorial associated with this repository](http://blog.mathematical-oncology.org/evofreq-and-hal.html)
 
 This is the open-source code repository for the passenger driver model of tumor evolution. This is a two-dimensional on lattice agent-based model.
 
