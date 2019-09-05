@@ -1,9 +1,9 @@
 package Model;
 
-import Framework.GridsAndAgents.AgentGrid2D;
-import Framework.Gui.*;
-import Framework.Rand;
-import static Framework.Util.*;
+import HAL.GridsAndAgents.AgentGrid2D;
+import HAL.Gui.*;
+import HAL.Rand;
+import static HAL.Util.*;
 
 public class TumorEvolution extends AgentGrid2D<Cell> {
 
@@ -13,12 +13,12 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
     public double sd = 0.1;                         // driver mutation birth multiplier
     public double birth_rate = 0.1;                 // baseline birth rate
     public double death_rate = 0.09;                // baseline death rate
-    public int r0 = 20;                             // initial size of population (r0 x r0)
+    public int r0 = 5;                             // initial size of population (r0 x r0)
     public int delete_threshold = 25;               // ignore clone sizes smaller than this in Muller plots
 
     // utility parameters/functions
     public int[] neighborhood=MooreHood(false);
-    Rand rn=new Rand();
+    Rand rn=new Rand(1);
     Clone clone0;
 
     // constructor
@@ -87,15 +87,14 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
         }
 
         // save clonal information in EvoFreq format:
-        String[] AttributesList = new String[]{"Drivers","Passengers,Color"};
-        tumor.clone0.PopRecordToCSV(foldername+"phylogeny_tracker.csv",AttributesList, (Clone c) -> {return GetAttributes(c); },tumor.delete_threshold);
+        String[] AttributesList = new String[]{"Drivers","Passengers","Color"};
+        tumor.clone0.OutputClonesToCSV(foldername+"phylogeny_tracker.csv",AttributesList, (Clone c) -> {return GetAttributes(c); },tumor.delete_threshold);
 
         myGif.Close();
         window.Close();
 
         return;
     }
-
 
     /*
 
@@ -120,8 +119,8 @@ public class TumorEvolution extends AgentGrid2D<Cell> {
 
      */
 
-    public static String[] GetAttributes(Clone c) {
-        return new String[]{Integer.toString(c.kd),Integer.toString(c.kp),c.Hex()};
+    public static String GetAttributes(Clone c) {
+        return Integer.toString(c.kd) + "," + Integer.toString(c.kp) + "," + c.Hex();
     }
 
 }

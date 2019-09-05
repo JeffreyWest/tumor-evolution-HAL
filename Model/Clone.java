@@ -1,7 +1,7 @@
 package Model;
-import Framework.Tools.PhylogenyTracker.Genome;
+import HAL.Tools.PhylogenyTracker.Genome;
 
-import static Framework.Util.*;
+import static HAL.Util.*;
 
 class Clone extends Genome<Clone> {
 
@@ -20,7 +20,7 @@ class Clone extends Genome<Clone> {
     }
 
     public String Hex() {
-        return String.format("#%02x%02x%02x", GetRed256(color), GetBlue256(color), GetGreen256(color));
+        return String.format("#%02x%02x%02x", GetRed256(color), GetGreen256(color), GetBlue256(color));
     }
 
 

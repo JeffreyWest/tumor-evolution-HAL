@@ -1,7 +1,6 @@
 package Model;
 
-import Framework.GridsAndAgents.AgentSQ2Dunstackable;
-import Framework.Tools.*;
+import HAL.GridsAndAgents.AgentSQ2Dunstackable;
 
 public class Cell extends AgentSQ2Dunstackable<TumorEvolution> {
 

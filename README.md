@@ -16,7 +16,7 @@ TumorEvolution.java uses the open-source agent-based modeling platform called [H
 5. go to "file/ project structure"
 6. click the "libraries" tab
 7. use the minus button to remove any pre-existing library setup
-8. click the plus button, and direct the file browser to the "Framework/ lib" folder.
+8. click the plus button, and direct the file browser to the "HAL/ lib" folder.
 9. click apply or ok
 
 ### References
